@@ -1,0 +1,926 @@
+diff --git a/src/components/GoogleIcon.tsx b/src/components/GoogleIcon.tsx
+new file mode 100644
+index 0000000..09a93c7
+--- /dev/null
++++ b/src/components/GoogleIcon.tsx
+@@ -0,0 +1,23 @@
++/** Official Google "G" mark, used on the Continue with Google button. */
++export function GoogleIcon({ className }: { className?: string }) {
++  return (
++    <svg className={className} viewBox="0 0 48 48" aria-hidden focusable="false">
++      <path
++        fill="#EA4335"
++        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
++      />
++      <path
++        fill="#4285F4"
++        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
++      />
++      <path
++        fill="#FBBC05"
++        d="M10.53 28.59A14.5 14.5 0 0 1 9.77 24c0-1.6.28-3.14.76-4.59l-7.98-6.19A23.94 23.94 0 0 0 0 24c0 3.88.93 7.54 2.56 10.78l7.97-6.19z"
++      />
++      <path
++        fill="#34A853"
++        d="M24 48c6.48 0 11.93-2.13 15.9-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.17 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
++      />
++    </svg>
++  );
++}
+diff --git a/src/lib/i18n.tsx b/src/lib/i18n.tsx
+index a8f098a..e98370b 100644
+--- a/src/lib/i18n.tsx
++++ b/src/lib/i18n.tsx
+@@ -179,6 +179,12 @@ const dict = {
+   "auth.signin": { en: "Sign in", zh: "登录", ms: "Log masuk" },
+   "auth.signup": { en: "Create account", zh: "注册", ms: "Daftar akaun" },
+   "auth.google": { en: "Continue with Google", zh: "使用 Google 登录", ms: "Teruskan dengan Google" },
++  "auth.callbackWait": { en: "Signing you in…", zh: "正在登录…", ms: "Sedang log masuk…" },
++  "auth.callbackFailed": {
++    en: "We could not complete the sign in. Please try again.",
++    zh: "无法完成登录，请重试。",
++    ms: "Log masuk tidak dapat diselesaikan. Sila cuba lagi.",
++  },
+   "auth.toggleSignup": {
+     en: "No account? Create one",
+     zh: "没有账号？去注册",
+diff --git a/src/routeTree.gen.ts b/src/routeTree.gen.ts
+index aa26e80..548ac7f 100644
+--- a/src/routeTree.gen.ts
++++ b/src/routeTree.gen.ts
+@@ -10,8 +10,11 @@
+ 
+ import { Route as rootRouteImport } from './routes/__root'
+ import { Route as IndexRouteImport } from './routes/index'
+-import { Route as AuthRouteImport } from './routes/auth'
+ import { Route as ConsoleRouteImport } from './routes/console'
++import { Route as Place_orderRouteImport } from './routes/place_order'
++import { Route as SignupRouteImport } from './routes/signup'
++import { Route as AuthIndexRouteImport } from './routes/auth.index'
++import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+ import { Route as OrderTokenRouteImport } from './routes/order.$token'
+ 
+ const IndexRoute = IndexRouteImport.update({
+@@ -19,16 +22,31 @@ const IndexRoute = IndexRouteImport.update({
+   path: '/',
+   getParentRoute: () => rootRouteImport,
+ } as any)
+-const AuthRoute = AuthRouteImport.update({
+-  id: '/auth',
+-  path: '/auth',
+-  getParentRoute: () => rootRouteImport,
+-} as any)
+ const ConsoleRoute = ConsoleRouteImport.update({
+   id: '/console',
+   path: '/console',
+   getParentRoute: () => rootRouteImport,
+ } as any)
++const Place_orderRoute = Place_orderRouteImport.update({
++  id: '/place_order',
++  path: '/place_order',
++  getParentRoute: () => rootRouteImport,
++} as any)
++const SignupRoute = SignupRouteImport.update({
++  id: '/signup',
++  path: '/signup',
++  getParentRoute: () => rootRouteImport,
++} as any)
++const AuthIndexRoute = AuthIndexRouteImport.update({
++  id: '/auth/',
++  path: '/auth/',
++  getParentRoute: () => rootRouteImport,
++} as any)
++const AuthCallbackRoute = AuthCallbackRouteImport.update({
++  id: '/auth/callback',
++  path: '/auth/callback',
++  getParentRoute: () => rootRouteImport,
++} as any)
+ const OrderTokenRoute = OrderTokenRouteImport.update({
+   id: '/order/$token',
+   path: '/order/$token',
+@@ -37,36 +55,70 @@ const OrderTokenRoute = OrderTokenRouteImport.update({
+ 
+ export interface FileRoutesByFullPath {
+   '/': typeof IndexRoute
+-  '/auth': typeof AuthRoute
+   '/console': typeof ConsoleRoute
++  '/place_order': typeof Place_orderRoute
++  '/signup': typeof SignupRoute
++  '/auth/callback': typeof AuthCallbackRoute
+   '/order/$token': typeof OrderTokenRoute
++  '/auth/': typeof AuthIndexRoute
+ }
+ export interface FileRoutesByTo {
+   '/': typeof IndexRoute
+-  '/auth': typeof AuthRoute
+   '/console': typeof ConsoleRoute
++  '/place_order': typeof Place_orderRoute
++  '/signup': typeof SignupRoute
++  '/auth/callback': typeof AuthCallbackRoute
+   '/order/$token': typeof OrderTokenRoute
++  '/auth': typeof AuthIndexRoute
+ }
+ export interface FileRoutesById {
+   __root__: typeof rootRouteImport
+   '/': typeof IndexRoute
+-  '/auth': typeof AuthRoute
+   '/console': typeof ConsoleRoute
++  '/place_order': typeof Place_orderRoute
++  '/signup': typeof SignupRoute
++  '/auth/callback': typeof AuthCallbackRoute
+   '/order/$token': typeof OrderTokenRoute
++  '/auth/': typeof AuthIndexRoute
+ }
+ export interface FileRouteTypes {
+   fileRoutesByFullPath: FileRoutesByFullPath
+-  fullPaths: '/' | '/auth' | '/console' | '/order/$token'
++  fullPaths:
++    | '/'
++    | '/console'
++    | '/place_order'
++    | '/signup'
++    | '/auth/callback'
++    | '/order/$token'
++    | '/auth/'
+   fileRoutesByTo: FileRoutesByTo
+-  to: '/' | '/auth' | '/console' | '/order/$token'
+-  id: '__root__' | '/' | '/auth' | '/console' | '/order/$token'
++  to:
++    | '/'
++    | '/console'
++    | '/place_order'
++    | '/signup'
++    | '/auth/callback'
++    | '/order/$token'
++    | '/auth'
++  id:
++    | '__root__'
++    | '/'
++    | '/console'
++    | '/place_order'
++    | '/signup'
++    | '/auth/callback'
++    | '/order/$token'
++    | '/auth/'
+   fileRoutesById: FileRoutesById
+ }
+ export interface RootRouteChildren {
+   IndexRoute: typeof IndexRoute
+-  AuthRoute: typeof AuthRoute
+   ConsoleRoute: typeof ConsoleRoute
++  Place_orderRoute: typeof Place_orderRoute
++  SignupRoute: typeof SignupRoute
++  AuthCallbackRoute: typeof AuthCallbackRoute
+   OrderTokenRoute: typeof OrderTokenRoute
++  AuthIndexRoute: typeof AuthIndexRoute
+ }
+ 
+ declare module '@tanstack/react-router' {
+@@ -78,13 +130,6 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof IndexRouteImport
+       parentRoute: typeof rootRouteImport
+     }
+-    '/auth': {
+-      id: '/auth'
+-      path: '/auth'
+-      fullPath: '/auth'
+-      preLoaderRoute: typeof AuthRouteImport
+-      parentRoute: typeof rootRouteImport
+-    }
+     '/console': {
+       id: '/console'
+       path: '/console'
+@@ -92,6 +137,34 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof ConsoleRouteImport
+       parentRoute: typeof rootRouteImport
+     }
++    '/place_order': {
++      id: '/place_order'
++      path: '/place_order'
++      fullPath: '/place_order'
++      preLoaderRoute: typeof Place_orderRouteImport
++      parentRoute: typeof rootRouteImport
++    }
++    '/signup': {
++      id: '/signup'
++      path: '/signup'
++      fullPath: '/signup'
++      preLoaderRoute: typeof SignupRouteImport
++      parentRoute: typeof rootRouteImport
++    }
++    '/auth/': {
++      id: '/auth/'
++      path: '/auth'
++      fullPath: '/auth/'
++      preLoaderRoute: typeof AuthIndexRouteImport
++      parentRoute: typeof rootRouteImport
++    }
++    '/auth/callback': {
++      id: '/auth/callback'
++      path: '/auth/callback'
++      fullPath: '/auth/callback'
++      preLoaderRoute: typeof AuthCallbackRouteImport
++      parentRoute: typeof rootRouteImport
++    }
+     '/order/$token': {
+       id: '/order/$token'
+       path: '/order/$token'
+@@ -104,9 +177,12 @@ declare module '@tanstack/react-router' {
+ 
+ const rootRouteChildren: RootRouteChildren = {
+   IndexRoute: IndexRoute,
+-  AuthRoute: AuthRoute,
+   ConsoleRoute: ConsoleRoute,
++  Place_orderRoute: Place_orderRoute,
++  SignupRoute: SignupRoute,
++  AuthCallbackRoute: AuthCallbackRoute,
+   OrderTokenRoute: OrderTokenRoute,
++  AuthIndexRoute: AuthIndexRoute,
+ }
+ export const routeTree = rootRouteImport
+   ._addFileChildren(rootRouteChildren)
+diff --git a/src/routes/auth.callback.tsx b/src/routes/auth.callback.tsx
+new file mode 100644
+index 0000000..5cbe198
+--- /dev/null
++++ b/src/routes/auth.callback.tsx
+@@ -0,0 +1,79 @@
++import { useEffect, useState } from "react";
++import { createFileRoute, useNavigate } from "@tanstack/react-router";
++import { Loader2 } from "lucide-react";
++import { supabase } from "@/integrations/supabase/client";
++import { useI18n } from "@/lib/i18n";
++
++/**
++ * Public landing page for social sign-in returns.
++ * Google (and any other provider) sends the browser back here; we wait until
++ * the Supabase session is hydrated, then forward to the seller console.
++ */
++export const Route = createFileRoute("/auth/callback")({
++  ssr: false,
++  head: () => ({
++    meta: [
++      { title: "Signing you in — SchoolOrder" },
++      { name: "description", content: "Completing your SchoolOrder sign in." },
++      { property: "og:title", content: "Signing you in — SchoolOrder" },
++      { property: "og:description", content: "Completing your SchoolOrder sign in." },
++      { name: "robots", content: "noindex" },
++    ],
++  }),
++  component: AuthCallback,
++});
++
++function AuthCallback() {
++  const navigate = useNavigate();
++  const { t } = useI18n();
++  const [failed, setFailed] = useState(false);
++
++  useEffect(() => {
++    let done = false;
++    const finish = (path: "/console" | "/signup") => {
++      if (done) return;
++      done = true;
++      void navigate({ to: path, replace: true });
++    };
++
++    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
++      if (session) finish("/console");
++    });
++
++    void supabase.auth.getSession().then(({ data }) => {
++      if (data.session) finish("/console");
++    });
++
++    // Give the provider redirect a few seconds to settle before giving up.
++    const timer = window.setTimeout(() => {
++      if (!done) setFailed(true);
++    }, 6000);
++
++    return () => {
++      sub.subscription.unsubscribe();
++      window.clearTimeout(timer);
++    };
++  }, [navigate]);
++
++  return (
++    <div className="flex min-h-screen items-center justify-center bg-background px-4">
++      {failed ? (
++        <div className="text-center">
++          <p className="text-sm text-muted-foreground">{t("auth.callbackFailed")}</p>
++          <button
++            type="button"
++            className="mt-3 text-sm underline underline-offset-4"
++            onClick={() => void navigate({ to: "/signup", replace: true })}
++          >
++            {t("auth.signin")}
++          </button>
++        </div>
++      ) : (
++        <p className="flex items-center gap-2 text-sm text-muted-foreground">
++          <Loader2 className="h-4 w-4 animate-spin" />
++          {t("auth.callbackWait")}
++        </p>
++      )}
++    </div>
++  );
++}
+diff --git a/src/routes/auth.index.tsx b/src/routes/auth.index.tsx
+new file mode 100644
+index 0000000..40dcbe0
+--- /dev/null
++++ b/src/routes/auth.index.tsx
+@@ -0,0 +1,8 @@
++import { createFileRoute, redirect } from "@tanstack/react-router";
++
++/** Legacy address. Sellers now sign in / sign up at /signup. */
++export const Route = createFileRoute("/auth/")({
++  beforeLoad: ({ search }) => {
++    throw redirect({ to: "/signup", search: search as { timeout?: "1" } });
++  },
++});
+diff --git a/src/routes/place_order.tsx b/src/routes/place_order.tsx
+new file mode 100644
+index 0000000..1704343
+--- /dev/null
++++ b/src/routes/place_order.tsx
+@@ -0,0 +1,492 @@
++import { useMemo, useState } from "react";
++import { createFileRoute, useNavigate } from "@tanstack/react-router";
++import { useQuery } from "@tanstack/react-query";
++import { Minus, Plus, Search, ShoppingBag, Loader2 } from "lucide-react";
++import { supabase } from "@/integrations/supabase/client";
++import { SiteHeader } from "@/components/SiteHeader";
++import { LoadingState, EmptyState, ErrorState } from "@/components/States";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Badge } from "@/components/ui/badge";
++import { Card, CardContent } from "@/components/ui/card";
++import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
++import { useI18n, translateError } from "@/lib/i18n";
++import { callRpc } from "@/lib/rpc";
++import { money } from "@/lib/format";
++import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
++
++export const Route = createFileRoute("/place_order")({
++  head: () => ({
++    meta: [
++      { title: "SchoolOrder — Order drinks from your school shop" },
++      {
++        name: "description",
++        content:
++          "Browse today's drinks, pay by cash or DuitNow QR, and get a pickup code instantly. No account needed.",
++      },
++      { property: "og:title", content: "SchoolOrder — Order drinks from your school shop" },
++      {
++        property: "og:description",
++        content: "Browse drinks, pay by cash or DuitNow, and collect with a pickup code.",
++      },
++    ],
++  }),
++  component: Shop,
++});
++
++type Variant = {
++  id: string;
++  name: string;
++  price: number;
++  stock: number;
++  sort_order: number;
++};
++type Product = {
++  id: string;
++  name: string;
++  description: string | null;
++  image_url: string | null;
++  sort_order: number;
++  product_variants: Variant[];
++};
++type CartLine = {
++  variantId: string;
++  productName: string;
++  variantName: string;
++  price: number;
++  stock: number;
++  qty: number;
++};
++
++function useShopData() {
++  return useQuery({
++    queryKey: ["shop"],
++    queryFn: async () => {
++      const { data: org, error: orgErr } = await supabase
++        .from("organizations")
++        .select("id, name, currency, is_open")
++        .order("created_at", { ascending: true })
++        .limit(1)
++        .maybeSingle();
++      if (orgErr) throw orgErr;
++      if (!org) return { org: null, products: [] as Product[] };
++
++      const { data: products, error: prodErr } = await supabase
++        .from("products")
++        .select(
++          "id, name, description, image_url, sort_order, product_variants(id, name, price, stock, sort_order, is_active)",
++        )
++        .eq("organization_id", org.id)
++        .eq("is_active", true)
++        .order("sort_order", { ascending: true });
++      if (prodErr) throw prodErr;
++
++      const cleaned: Product[] = (products ?? []).map((p) => ({
++        id: p.id,
++        name: p.name,
++        description: p.description,
++        image_url: p.image_url,
++        sort_order: p.sort_order,
++        product_variants: (p.product_variants ?? [])
++          .filter((v: { is_active: boolean }) => v.is_active)
++          .map((v: Variant) => ({ ...v, price: Number(v.price) }))
++          .sort((a: Variant, b: Variant) => a.sort_order - b.sort_order),
++      }));
++      return { org, products: cleaned.filter((p) => p.product_variants.length > 0) };
++    },
++  });
++}
++
++function ProductImage({ path, alt }: { path: string | null; alt: string }) {
++  const { data: url } = useSignedUrl(SHOP_BUCKET, path);
++  if (!url) {
++    return (
++      <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
++        <ShoppingBag className="h-6 w-6" aria-hidden />
++      </div>
++    );
++  }
++  return (
++    <img
++      src={url}
++      alt={alt}
++      loading="lazy"
++      className="h-32 w-full rounded-lg object-cover"
++    />
++  );
++}
++
++function Shop() {
++  const { t } = useI18n();
++  const navigate = useNavigate();
++  const { data, isLoading, isError, refetch } = useShopData();
++  const [search, setSearch] = useState("");
++  const [cart, setCart] = useState<Record<string, CartLine>>({});
++  const [open, setOpen] = useState(false);
++
++  const currency = data?.org?.currency ?? "RM";
++  const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
++  const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
++  const count = lines.reduce((sum, l) => sum + l.qty, 0);
++
++  const filtered = useMemo(() => {
++    const q = search.trim().toLowerCase();
++    if (!q) return data?.products ?? [];
++    return (data?.products ?? []).filter(
++      (p) =>
++        p.name.toLowerCase().includes(q) ||
++        (p.description ?? "").toLowerCase().includes(q) ||
++        p.product_variants.some((v) => v.name.toLowerCase().includes(q)),
++    );
++  }, [data, search]);
++
++  function addToCart(product: Product, variant: Variant) {
++    setCart((prev) => {
++      const current = prev[variant.id];
++      const qty = Math.min((current?.qty ?? 0) + 1, variant.stock);
++      return {
++        ...prev,
++        [variant.id]: {
++          variantId: variant.id,
++          productName: product.name,
++          variantName: variant.name,
++          price: variant.price,
++          stock: variant.stock,
++          qty,
++        },
++      };
++    });
++  }
++
++  function setQty(variantId: string, qty: number) {
++    setCart((prev) => {
++      const line = prev[variantId];
++      if (!line) return prev;
++      const next = Math.max(0, Math.min(qty, line.stock));
++      if (next === 0) {
++        const { [variantId]: _removed, ...rest } = prev;
++        return rest;
++      }
++      return { ...prev, [variantId]: { ...line, qty: next } };
++    });
++  }
++
++  return (
++    <div className="min-h-screen bg-background pb-24">
++      <SiteHeader subtitle={data?.org?.name} />
++
++      <main className="mx-auto max-w-6xl px-4 py-6">
++        <div className="mb-6">
++          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
++          {data?.org && !data.org.is_open ? (
++            <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
++              {t("shop.closed")}
++            </p>
++          ) : null}
++        </div>
++
++        <div className="relative mb-5 max-w-sm">
++          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
++          <Input
++            value={search}
++            onChange={(e) => setSearch(e.target.value)}
++            placeholder={t("shop.searchPlaceholder")}
++            aria-label={t("common.search")}
++            className="h-11 pl-9"
++          />
++        </div>
++
++        {isLoading ? <LoadingState /> : null}
++        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
++        {!isLoading && !isError && filtered.length === 0 ? (
++          <EmptyState label={t("shop.empty")} />
++        ) : null}
++
++        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
++          {filtered.map((product) => (
++            <Card key={product.id} className="overflow-hidden">
++              <CardContent className="flex flex-col gap-3 p-4">
++                <ProductImage path={product.image_url} alt={product.name} />
++                <div>
++                  <h2 className="text-base font-semibold leading-tight">{product.name}</h2>
++                  {product.description ? (
++                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
++                      {product.description}
++                    </p>
++                  ) : null}
++                </div>
++                <ul className="flex flex-col gap-2">
++                  {product.product_variants.map((variant) => {
++                    const inCart = cart[variant.id]?.qty ?? 0;
++                    const soldOut = variant.stock <= 0;
++                    return (
++                      <li
++                        key={variant.id}
++                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
++                      >
++                        <div className="min-w-0">
++                          <p className="truncate text-sm font-medium">{variant.name}</p>
++                          <p className="text-xs text-muted-foreground">
++                            {money(variant.price, currency)}
++                            {!soldOut && variant.stock <= 10
++                              ? ` · ${variant.stock} ${t("shop.left")}`
++                              : ""}
++                          </p>
++                        </div>
++                        {soldOut ? (
++                          <Badge variant="secondary">{t("shop.soldOut")}</Badge>
++                        ) : inCart > 0 ? (
++                          <div className="flex items-center gap-1">
++                            <Button
++                              size="icon"
++                              variant="outline"
++                              className="h-9 w-9"
++                              aria-label="-"
++                              onClick={() => setQty(variant.id, inCart - 1)}
++                            >
++                              <Minus className="h-4 w-4" />
++                            </Button>
++                            <span className="w-6 text-center text-sm font-semibold">{inCart}</span>
++                            <Button
++                              size="icon"
++                              variant="outline"
++                              className="h-9 w-9"
++                              aria-label="+"
++                              disabled={inCart >= variant.stock}
++                              onClick={() => setQty(variant.id, inCart + 1)}
++                            >
++                              <Plus className="h-4 w-4" />
++                            </Button>
++                          </div>
++                        ) : (
++                          <Button size="sm" className="h-9" onClick={() => addToCart(product, variant)}>
++                            {t("shop.add")}
++                          </Button>
++                        )}
++                      </li>
++                    );
++                  })}
++                </ul>
++              </CardContent>
++            </Card>
++          ))}
++        </div>
++      </main>
++
++      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur no-print">
++        <div className="mx-auto flex max-w-6xl items-center gap-3">
++          <div className="min-w-0 flex-1">
++            <p className="text-xs text-muted-foreground">{t("shop.cart")}</p>
++            <p className="truncate text-sm font-semibold">
++              {count} · {money(subtotal, currency)}
++            </p>
++          </div>
++          <Sheet open={open} onOpenChange={setOpen}>
++            <SheetTrigger asChild>
++              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
++                {t("shop.checkout")}
++              </Button>
++            </SheetTrigger>
++            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
++              <SheetHeader>
++                <SheetTitle>{t("shop.checkout")}</SheetTitle>
++              </SheetHeader>
++              {data?.org ? (
++                <CheckoutForm
++                  orgId={data.org.id}
++                  currency={currency}
++                  lines={lines}
++                  subtotal={subtotal}
++                  onQty={setQty}
++                  onDone={(token) => {
++                    setCart({});
++                    setOpen(false);
++                    void navigate({ to: "/order/$token", params: { token } });
++                  }}
++                />
++              ) : null}
++            </SheetContent>
++          </Sheet>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++function CheckoutForm({
++  orgId,
++  currency,
++  lines,
++  subtotal,
++  onQty,
++  onDone,
++}: {
++  orgId: string;
++  currency: string;
++  lines: CartLine[];
++  subtotal: number;
++  onQty: (variantId: string, qty: number) => void;
++  onDone: (token: string) => void;
++}) {
++  const { t } = useI18n();
++  const [name, setName] = useState("");
++  const [age, setAge] = useState("");
++  const [klass, setKlass] = useState("");
++  const [promo, setPromo] = useState("");
++  const [method, setMethod] = useState<"cash" | "duitnow" | null>(null);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  async function submit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++    if (name.trim().length < 2) return setError(t("err.INVALID_NAME"));
++    if (!method) return setError(t("shop.selectPayment"));
++    if (lines.length === 0) return setError(t("err.EMPTY_CART"));
++
++    setBusy(true);
++    try {
++      const data = await callRpc<{ access_token?: string }>("create_public_order", {
++        p_org: orgId,
++        p_buyer_name: name.trim(),
++        p_buyer_age: age ? Number(age) : null,
++        p_buyer_class: klass.trim() || null,
++        p_items: lines.map((l) => ({ variant_id: l.variantId, quantity: l.qty })),
++        p_payment_method: method,
++        p_promo_code: promo.trim() || null,
++      });
++      const token = data?.access_token;
++      if (!token) throw new Error("ORDER_NOT_FOUND");
++      onDone(token);
++    } catch (err) {
++      setError(translateError(t, err instanceof Error ? err.message : null));
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (lines.length === 0) {
++    return <p className="py-8 text-sm text-muted-foreground">{t("shop.cartEmpty")}</p>;
++  }
++
++  return (
++    <form className="flex flex-col gap-5 py-4" onSubmit={submit} noValidate>
++      <ul className="flex flex-col gap-2">
++        {lines.map((l) => (
++          <li key={l.variantId} className="flex items-center justify-between gap-2 text-sm">
++            <span className="min-w-0 truncate">
++              {l.productName} · {l.variantName}
++            </span>
++            <span className="flex items-center gap-1">
++              <Button
++                type="button"
++                size="icon"
++                variant="outline"
++                className="h-8 w-8"
++                aria-label="-"
++                onClick={() => onQty(l.variantId, l.qty - 1)}
++              >
++                <Minus className="h-3 w-3" />
++              </Button>
++              <span className="w-5 text-center">{l.qty}</span>
++              <Button
++                type="button"
++                size="icon"
++                variant="outline"
++                className="h-8 w-8"
++                aria-label="+"
++                disabled={l.qty >= l.stock}
++                onClick={() => onQty(l.variantId, l.qty + 1)}
++              >
++                <Plus className="h-3 w-3" />
++              </Button>
++              <span className="w-16 text-right font-medium">{money(l.price * l.qty, currency)}</span>
++            </span>
++          </li>
++        ))}
++      </ul>
++
++      <div className="flex justify-between border-t pt-3 text-sm font-semibold">
++        <span>{t("common.subtotal")}</span>
++        <span>{money(subtotal, currency)}</span>
++      </div>
++
++      <fieldset className="grid gap-3">
++        <legend className="mb-1 text-sm font-semibold">{t("shop.yourDetails")}</legend>
++        <div className="grid gap-2">
++          <Label htmlFor="buyer-name">{t("shop.buyerName")}</Label>
++          <Input id="buyer-name" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
++        </div>
++        <div className="grid grid-cols-2 gap-2">
++          <div className="grid gap-2">
++            <Label htmlFor="buyer-age">{t("shop.buyerAge")}</Label>
++            <Input
++              id="buyer-age"
++              type="number"
++              min={5}
++              max={100}
++              inputMode="numeric"
++              value={age}
++              onChange={(e) => setAge(e.target.value)}
++              className="h-11"
++            />
++          </div>
++          <div className="grid gap-2">
++            <Label htmlFor="buyer-class">{t("shop.buyerClass")}</Label>
++            <Input id="buyer-class" value={klass} onChange={(e) => setKlass(e.target.value)} className="h-11" />
++          </div>
++        </div>
++      </fieldset>
++
++      <fieldset className="grid gap-2">
++        <legend className="mb-1 text-sm font-semibold">{t("shop.payment")}</legend>
++        <div className="grid grid-cols-2 gap-2">
++          <Button
++            type="button"
++            variant={method === "cash" ? "default" : "outline"}
++            className="h-11"
++            onClick={() => setMethod("cash")}
++          >
++            {t("shop.cash")}
++          </Button>
++          <Button
++            type="button"
++            variant={method === "duitnow" ? "default" : "outline"}
++            className="h-11"
++            onClick={() => setMethod("duitnow")}
++          >
++            {t("shop.duitnow")}
++          </Button>
++        </div>
++        {method ? (
++          <p className="text-xs text-muted-foreground">
++            {method === "cash" ? t("shop.cashNote") : t("shop.duitnowNote")}
++          </p>
++        ) : null}
++      </fieldset>
++
++      <div className="grid gap-2">
++        <Label htmlFor="promo">{t("shop.promo")}</Label>
++        <Input
++          id="promo"
++          value={promo}
++          onChange={(e) => setPromo(e.target.value.toUpperCase())}
++          placeholder={t("shop.promoPlaceholder")}
++          className="h-11"
++        />
++      </div>
++
++      {error ? (
++        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
++          {error}
++        </p>
++      ) : null}
++
++      <Button type="submit" className="h-12" disabled={busy}>
++        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
++        {busy ? t("shop.placing") : t("shop.placeOrder")}
++      </Button>
++    </form>
++  );
++}
+diff --git a/src/routes/auth.tsx b/src/routes/signup.tsx
+similarity index 83%
+rename from src/routes/auth.tsx
+rename to src/routes/signup.tsx
+index 9f8dbfc..9529094 100644
+--- a/src/routes/auth.tsx
++++ b/src/routes/signup.tsx
+@@ -9,15 +9,16 @@ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { SiteHeader } from "@/components/SiteHeader";
++import { GoogleIcon } from "@/components/GoogleIcon";
+ import { useAuth } from "@/lib/auth";
+ import { useI18n, translateError } from "@/lib/i18n";
+ 
+-export const Route = createFileRoute("/auth")({
++export const Route = createFileRoute("/signup")({
+   head: () => ({
+     meta: [
+-      { title: "Sign in — SchoolOrder" },
++      { title: "Seller sign up — SchoolOrder" },
+       { name: "description", content: "Sign in to manage your school drinks shop, stock and orders." },
+-      { property: "og:title", content: "Sign in — SchoolOrder" },
++      { property: "og:title", content: "Seller sign up — SchoolOrder" },
+       { property: "og:description", content: "Owner and dealer sign in for the SchoolOrder workflow." },
+       { name: "robots", content: "noindex" },
+     ],
+@@ -31,8 +32,8 @@ function AuthPage() {
+   const { t } = useI18n();
+   const navigate = useNavigate();
+   const { user, timedOut } = useAuth();
+-  const search = useSearch({ from: "/auth" });
+-  const [mode, setMode] = useState<"signin" | "signup">("signin");
++  const search = useSearch({ from: "/signup" });
++  const [mode, setMode] = useState<"signin" | "signup">("signup");
+   const [email, setEmail] = useState("");
+   const [password, setPassword] = useState("");
+   const [displayName, setDisplayName] = useState("");
+@@ -87,15 +88,25 @@ function AuthPage() {
+ 
+   async function onGoogle() {
+     setError(null);
+-    const result = await lovable.auth.signInWithOAuth("google", {
+-      redirect_uri: window.location.origin,
+-    });
+-    if (result.error) {
+-      setError(translateError(t, result.error.message));
+-      return;
++    setBusy(true);
++    try {
++      // Must be a public, same-origin URL. /auth/callback waits for the session
++      // and then forwards to the console, so the provider never lands on a
++      // protected page (which showed a 404 / bounced back to sign in).
++      const result = await lovable.auth.signInWithOAuth("google", {
++        redirect_uri: `${window.location.origin}/auth/callback`,
++      });
++      if (result.error) {
++        setError(translateError(t, result.error.message));
++        return;
++      }
++      if (result.redirected) return;
++      await navigate({ to: "/console" });
++    } catch (err) {
++      setError(translateError(t, err instanceof Error ? err.message : null));
++    } finally {
++      setBusy(false);
+     }
+-    if (result.redirected) return;
+-    await navigate({ to: "/console" });
+   }
+ 
+   return (
+@@ -174,7 +185,14 @@ function AuthPage() {
+               <span className="h-px flex-1 bg-border" />
+             </div>
+ 
+-            <Button variant="outline" className="h-11 w-full" onClick={() => void onGoogle()}>
++            <Button
++              type="button"
++              variant="outline"
++              className="h-11 w-full gap-2"
++              disabled={busy}
++              onClick={() => void onGoogle()}
++            >
++              <GoogleIcon className="h-4 w-4" />
+               {t("auth.google")}
+             </Button>
+ 

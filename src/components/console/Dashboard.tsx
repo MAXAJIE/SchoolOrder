@@ -21,7 +21,7 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
     queryKey: ["dashboard", orgId],
     queryFn: async () => {
       const since = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
-      const [orders, items, variants] = await Promise.all([
+      const [orders, items, products] = await Promise.all([
         supabase
           .from("orders")
           .select("id, total, cost_total, status, payment_status, created_at")
@@ -32,15 +32,15 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
           .select("product_name, variant_name, quantity, line_total")
           .eq("organization_id", orgId)
           .limit(1000),
-        supabase.from("product_variants").select("stock").eq("organization_id", orgId),
+        supabase.from("products").select("stock").eq("organization_id", orgId),
       ]);
       if (orders.error) throw orders.error;
       if (items.error) throw items.error;
-      if (variants.error) throw variants.error;
+      if (products.error) throw products.error;
       return {
         orders: (orders.data ?? []) as OrderRow[],
         items: items.data ?? [],
-        stock: (variants.data ?? []).reduce((sum, v) => sum + (v.stock ?? 0), 0),
+        stock: (products.data ?? []).reduce((sum, p) => sum + (p.stock ?? 0), 0),
       };
     },
   });

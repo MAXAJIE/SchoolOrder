@@ -3,21 +3,21 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SiteHeader } from "@/components/SiteHeader";
+import { GoogleIcon } from "@/components/GoogleIcon";
 import { useAuth } from "@/lib/auth";
 import { useI18n, translateError } from "@/lib/i18n";
 
-export const Route = createFileRoute("/auth")({
+export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Sign in — SchoolOrder" },
+      { title: "Seller sign up — SchoolOrder" },
       { name: "description", content: "Sign in to manage your school drinks shop, stock and orders." },
-      { property: "og:title", content: "Sign in — SchoolOrder" },
+      { property: "og:title", content: "Seller sign up — SchoolOrder" },
       { property: "og:description", content: "Owner and dealer sign in for the SchoolOrder workflow." },
       { name: "robots", content: "noindex" },
     ],
@@ -31,8 +31,8 @@ function AuthPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { user, timedOut } = useAuth();
-  const search = useSearch({ from: "/auth" });
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const search = useSearch({ from: "/signup" });
+  const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -87,15 +87,23 @@ function AuthPage() {
 
   async function onGoogle() {
     setError(null);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      setError(translateError(t, result.error.message));
+    setBusy(true);
+    try {
+      // Must be a public, same-origin URL. /auth/callback waits for the session
+      // and then forwards to the console, so the provider never lands on a
+      // protected page (which showed a 404 / bounced back to sign in).
+      const { error: err } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (err) throw err;
+      // Supabase redirects the browser to Google; the callback route handles the session.
       return;
+    } catch (err) {
+      setError(translateError(t, err instanceof Error ? err.message : null));
+    } finally {
+      setBusy(false);
     }
-    if (result.redirected) return;
-    await navigate({ to: "/console" });
   }
 
   return (
@@ -174,7 +182,14 @@ function AuthPage() {
               <span className="h-px flex-1 bg-border" />
             </div>
 
-            <Button variant="outline" className="h-11 w-full" onClick={() => void onGoogle()}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full gap-2"
+              disabled={busy}
+              onClick={() => void onGoogle()}
+            >
+              <GoogleIcon className="h-4 w-4" />
               {t("auth.google")}
             </Button>
 

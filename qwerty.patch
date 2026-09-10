@@ -1,0 +1,34 @@
+diff --git a/src/routes/signup.tsx b/src/routes/signup.tsx
+index 9529094..f3a8988 100644
+--- a/src/routes/signup.tsx
++++ b/src/routes/signup.tsx
+@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
+ import { Eye, EyeOff, Loader2 } from "lucide-react";
+ import { toast } from "sonner";
+ import { supabase } from "@/integrations/supabase/client";
+-import { lovable } from "@/integrations/lovable/index";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+@@ -93,15 +92,13 @@ function AuthPage() {
+       // Must be a public, same-origin URL. /auth/callback waits for the session
+       // and then forwards to the console, so the provider never lands on a
+       // protected page (which showed a 404 / bounced back to sign in).
+-      const result = await lovable.auth.signInWithOAuth("google", {
+-        redirect_uri: `${window.location.origin}/auth/callback`,
++      const { error: err } = await supabase.auth.signInWithOAuth({
++        provider: "google",
++        options: { redirectTo: `${window.location.origin}/auth/callback` },
+       });
+-      if (result.error) {
+-        setError(translateError(t, result.error.message));
+-        return;
+-      }
+-      if (result.redirected) return;
+-      await navigate({ to: "/console" });
++      if (err) throw err;
++      // Supabase redirects the browser to Google; the callback route handles the session.
++      return;
+     } catch (err) {
+       setError(translateError(t, err instanceof Error ? err.message : null));
+     } finally {

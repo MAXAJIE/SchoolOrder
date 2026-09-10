@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n, translateError } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
+import { ImageCropper } from "@/components/ImageCropper";
 import {
   IMAGE_TYPES,
   MAX_IMAGE_BYTES,
@@ -35,6 +36,7 @@ export function Settings({
   const [shopName, setShopName] = useState(name);
   const [curr, setCurr] = useState(currency);
   const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
   const qr = useQuery({
     queryKey: ["qr-admin", orgId],
@@ -155,12 +157,22 @@ export function Settings({
               className="h-11"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) void uploadQr(file);
+                if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) setCropFile(file);
+                else if (file) toast.error(t("order.imageOnly"));
               }}
             />
           </div>
         </CardContent>
       </Card>
+
+      <ImageCropper
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onComplete={(cropped) => {
+          setCropFile(null);
+          void uploadQr(cropped);
+        }}
+      />
 
       <Card className="lg:col-span-2">
         <CardContent className="grid gap-4 p-4">

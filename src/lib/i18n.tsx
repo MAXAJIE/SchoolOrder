@@ -73,6 +73,11 @@ const dict = {
   "common.copy": { en: "Copy link", zh: "复制链接", ms: "Salin pautan" },
   "common.copied": { en: "Copied", zh: "已复制", ms: "Disalin" },
   "common.back": { en: "Back", zh: "返回", ms: "Kembali" },
+  "image.crop": { en: "Crop image", zh: "裁剪图片", ms: "Pangkas imej" },
+  "image.zoom": { en: "Zoom", zh: "缩放", ms: "Zum" },
+  "image.horizontal": { en: "Horizontal position", zh: "水平位置", ms: "Kedudukan mendatar" },
+  "image.vertical": { en: "Vertical position", zh: "垂直位置", ms: "Kedudukan menegak" },
+  "image.useCrop": { en: "Use cropped image", zh: "使用裁剪后的图片", ms: "Guna imej yang dipangkas" },
 
   "shop.closed": {
     en: "The shop is closed right now.",
@@ -179,6 +184,12 @@ const dict = {
   "auth.signin": { en: "Sign in", zh: "登录", ms: "Log masuk" },
   "auth.signup": { en: "Create account", zh: "注册", ms: "Daftar akaun" },
   "auth.google": { en: "Continue with Google", zh: "使用 Google 登录", ms: "Teruskan dengan Google" },
+  "auth.callbackWait": { en: "Signing you in…", zh: "正在登录…", ms: "Sedang log masuk…" },
+  "auth.callbackFailed": {
+    en: "We could not complete the sign in. Please try again.",
+    zh: "无法完成登录，请重试。",
+    ms: "Log masuk tidak dapat diselesaikan. Sila cuba lagi.",
+  },
   "auth.toggleSignup": {
     en: "No account? Create one",
     zh: "没有账号？去注册",

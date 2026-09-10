@@ -23,13 +23,13 @@ import { useI18n, translateError } from "@/lib/i18n";
 import { money } from "@/lib/format";
 import { callRpc } from "@/lib/rpc";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, SHOP_BUCKET, fileExtension } from "@/lib/storage";
+import { ImageCropper } from "@/components/ImageCropper";
 
 type VariantForm = {
   id?: string;
   name: string;
   price: string;
   cost_price: string;
-  stock: string;
   is_active: boolean;
 };
 type ProductRow = {
@@ -37,13 +37,13 @@ type ProductRow = {
   name: string;
   description: string | null;
   image_url: string | null;
+  stock: number;
   is_active: boolean;
   product_variants: {
     id: string;
     name: string;
     price: number;
     cost_price: number;
-    stock: number;
     is_active: boolean;
   }[];
 };
@@ -52,7 +52,6 @@ const emptyVariant = (): VariantForm => ({
   name: "Standard",
   price: "",
   cost_price: "0",
-  stock: "0",
   is_active: true,
 });
 
@@ -68,7 +67,7 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, description, image_url, is_active, product_variants(id, name, price, cost_price, stock, is_active, sort_order)",
+          "id, name, description, image_url, stock, is_active, product_variants(id, name, price, cost_price, is_active, sort_order)",
         )
         .eq("organization_id", orgId)
         .order("sort_order", { ascending: true });
@@ -78,9 +77,9 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
   });
 
   const adjust = useMutation({
-    mutationFn: async ({ variantId, delta }: { variantId: string; delta: number }) =>
+    mutationFn: async ({ productId, delta }: { productId: string; delta: number }) =>
       callRpc("adjust_stock", {
-        p_variant: variantId,
+        p_product: productId,
         p_delta: delta,
         p_reason: delta > 0 ? "purchase" : "manual_adjustment",
         p_note: null,
@@ -151,43 +150,43 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
                   {t("common.edit")}
                 </Button>
               </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+                <span className="font-medium">{t("common.stock")}: {p.stock}</span>
+                <span className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => adjust.mutate({ productId: p.id, delta: -1 })}
+                    disabled={adjust.isPending || p.stock <= 0}
+                  >
+                    -1
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => adjust.mutate({ productId: p.id, delta: 1 })}
+                    disabled={adjust.isPending}
+                  >
+                    +1
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => adjust.mutate({ productId: p.id, delta: 10 })}
+                    disabled={adjust.isPending}
+                  >
+                    +10
+                  </Button>
+                </span>
+              </div>
               <ul className="flex flex-col gap-2">
                 {p.product_variants.map((v) => (
                   <li key={v.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm">
                     <span className="min-w-0 flex-1 truncate font-medium">{v.name}</span>
                     <span>{money(v.price, currency)}</span>
-                    <span className="text-muted-foreground">
-                      {t("common.stock")}: {v.stock}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9"
-                        onClick={() => adjust.mutate({ variantId: v.id, delta: -1 })}
-                        disabled={adjust.isPending || v.stock <= 0}
-                      >
-                        -1
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9"
-                        onClick={() => adjust.mutate({ variantId: v.id, delta: 1 })}
-                        disabled={adjust.isPending}
-                      >
-                        +1
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9"
-                        onClick={() => adjust.mutate({ variantId: v.id, delta: 10 })}
-                        disabled={adjust.isPending}
-                      >
-                        +10
-                      </Button>
-                    </span>
                   </li>
                 ))}
               </ul>
@@ -213,6 +212,8 @@ function ProductDialog({
   const [description, setDescription] = useState(product?.description ?? "");
   const [isActive, setIsActive] = useState(product?.is_active ?? true);
   const [imagePath, setImagePath] = useState<string | null>(product?.image_url ?? null);
+  const [productStock, setProductStock] = useState(String(product?.stock ?? 0));
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [variants, setVariants] = useState<VariantForm[]>(
     product?.product_variants.length
       ? product.product_variants.map((v) => ({
@@ -220,7 +221,6 @@ function ProductDialog({
           name: v.name,
           price: String(v.price),
           cost_price: String(v.cost_price),
-          stock: String(v.stock),
           is_active: v.is_active,
         }))
       : [emptyVariant()],
@@ -253,9 +253,10 @@ function ProductDialog({
         ...v,
         priceNum: Number(v.price),
         costNum: Number(v.cost_price || 0),
-        stockNum: Math.trunc(Number(v.stock || 0)),
       }))
       .filter((v) => v.name.trim() && Number.isFinite(v.priceNum) && v.priceNum >= 0 && v.price !== "");
+    const stockNum = Math.trunc(Number(productStock));
+    if (!Number.isFinite(stockNum) || stockNum < 0 || productStock.trim() === "") return setError(t("common.required"));
     if (parsed.length === 0) return setError(t("prod.needVariant"));
 
     setBusy(true);
@@ -268,6 +269,7 @@ function ProductDialog({
             name: name.trim(),
             description: description.trim() || null,
             image_url: imagePath,
+            stock: stockNum,
             is_active: isActive,
           })
           .eq("id", productId);
@@ -280,6 +282,7 @@ function ProductDialog({
             name: name.trim(),
             description: description.trim() || null,
             image_url: imagePath,
+            stock: stockNum,
             is_active: isActive,
           })
           .select("id")
@@ -295,7 +298,6 @@ function ProductDialog({
           name: v.name.trim(),
           price: v.priceNum,
           cost_price: v.costNum,
-          stock: v.stockNum,
           is_active: v.is_active,
           sort_order: index,
         };
@@ -330,6 +332,19 @@ function ProductDialog({
           <Label htmlFor="p-desc">{t("prod.description")}</Label>
           <Textarea id="p-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="p-stock">{t("common.stock")}</Label>
+          <Input
+            id="p-stock"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={productStock}
+            onChange={(e) => setProductStock(e.target.value)}
+            className="h-11"
+          />
+        </div>
         <div className="flex items-center justify-between rounded-lg border px-3 py-2">
           <Label htmlFor="p-active">{t("common.active")}</Label>
           <Switch id="p-active" checked={isActive} onCheckedChange={setIsActive} />
@@ -343,7 +358,8 @@ function ProductDialog({
             className="h-11"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) void uploadImage(file);
+              if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) setCropFile(file);
+              else if (file) setError(t("order.imageOnly"));
             }}
           />
           {imagePath ? <p className="text-xs text-muted-foreground">{imagePath}</p> : null}
@@ -375,7 +391,7 @@ function ProductDialog({
                   </Button>
                 ) : null}
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Input
                   aria-label={t("common.price")}
                   placeholder={t("common.price")}
@@ -394,18 +410,6 @@ function ProductDialog({
                   className="h-11"
                   onChange={(e) =>
                     setVariants((prev) => prev.map((x, xi) => (xi === i ? { ...x, cost_price: e.target.value } : x)))
-                  }
-                />
-                <Input
-                  aria-label={t("common.stock")}
-                  placeholder={t("common.stock")}
-                  inputMode="numeric"
-                  value={v.stock}
-                  disabled={Boolean(v.id)}
-                  title={v.id ? t("prod.adjustStock") : undefined}
-                  className="h-11"
-                  onChange={(e) =>
-                    setVariants((prev) => prev.map((x, xi) => (xi === i ? { ...x, stock: e.target.value } : x)))
                   }
                 />
               </div>
@@ -428,6 +432,14 @@ function ProductDialog({
           {t("common.save")}
         </Button>
       </DialogFooter>
+      <ImageCropper
+        file={cropFile}
+        onCancel={() => setCropFile(null)}
+        onComplete={(cropped) => {
+          setCropFile(null);
+          void uploadImage(cropped);
+        }}
+      />
     </DialogContent>
   );
 }

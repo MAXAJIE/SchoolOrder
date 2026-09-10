@@ -16,7 +16,7 @@ import { callRpc } from "@/lib/rpc";
 import { money } from "@/lib/format";
 import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/place_order")({
   head: () => ({
     meta: [
       { title: "SchoolOrder — Order drinks from your school shop" },

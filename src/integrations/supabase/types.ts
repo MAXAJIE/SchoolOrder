@@ -99,8 +99,9 @@ export type Database = {
           id: string
           note: string | null
           organization_id: string
+          product_id: string | null
           reason: Database["public"]["Enums"]["movement_reason"]
-          variant_id: string
+          variant_id: string | null
         }
         Insert: {
           created_at?: string
@@ -109,8 +110,9 @@ export type Database = {
           id?: string
           note?: string | null
           organization_id: string
+          product_id?: string | null
           reason: Database["public"]["Enums"]["movement_reason"]
-          variant_id: string
+          variant_id?: string | null
         }
         Update: {
           created_at?: string
@@ -119,8 +121,9 @@ export type Database = {
           id?: string
           note?: string | null
           organization_id?: string
+          product_id?: string | null
           reason?: Database["public"]["Enums"]["movement_reason"]
-          variant_id?: string
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -128,6 +131,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -398,7 +408,6 @@ export type Database = {
           price: number
           product_id: string
           sort_order: number
-          stock: number
         }
         Insert: {
           cost_price?: number
@@ -410,7 +419,6 @@ export type Database = {
           price: number
           product_id: string
           sort_order?: number
-          stock?: number
         }
         Update: {
           cost_price?: number
@@ -422,7 +430,6 @@ export type Database = {
           price?: number
           product_id?: string
           sort_order?: number
-          stock?: number
         }
         Relationships: [
           {
@@ -451,6 +458,7 @@ export type Database = {
           name: string
           organization_id: string
           sort_order: number
+          stock: number
           updated_at: string
         }
         Insert: {
@@ -462,6 +470,7 @@ export type Database = {
           name: string
           organization_id: string
           sort_order?: number
+          stock?: number
           updated_at?: string
         }
         Update: {
@@ -473,6 +482,7 @@ export type Database = {
           name?: string
           organization_id?: string
           sort_order?: number
+          stock?: number
           updated_at?: string
         }
         Relationships: [
@@ -671,8 +681,8 @@ export type Database = {
         Args: {
           p_delta: number
           p_note?: string
+          p_product: string
           p_reason: Database["public"]["Enums"]["movement_reason"]
-          p_variant: string
         }
         Returns: Json
       }
