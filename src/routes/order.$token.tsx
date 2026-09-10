@@ -42,6 +42,7 @@ type OrderItem = {
   line_total: number;
 };
 type OrderView = {
+  organization_id: string;
   organization_name: string;
   currency: string;
   order_number: string;
@@ -79,13 +80,15 @@ function OrderPage() {
   const order = orderQuery.data;
 
   const qrQuery = useQuery({
-    queryKey: ["qr", order?.organization_name],
-    enabled: order?.payment_method === "duitnow",
+    queryKey: ["payment-qr", order?.organization_id],
+    enabled: order?.payment_method === "duitnow" && Boolean(order?.organization_id),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("payment_qr")
         .select("image_url, label")
+        .eq("organization_id", order!.organization_id)
         .eq("is_active", true)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -105,14 +108,10 @@ function OrderPage() {
     }
     setUploading(true);
     try {
-      const { data: orgRow } = await supabase
-        .from("organizations")
-        .select("id")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (!orgRow) throw new Error("ORG_NOT_FOUND");
-      const path = `${orgRow.id}/${token.slice(0, 16)}-${Date.now()}.${fileExtension(file)}`;
+      // Must be the order's own shop: the owner read policy keys off this folder.
+      const orgId = order?.organization_id;
+      if (!orgId) throw new Error("ORG_NOT_FOUND");
+      const path = `${orgId}/${token.slice(0, 16)}-${Date.now()}.${fileExtension(file)}`;
       const { error: upErr } = await supabase.storage
         .from(PROOF_BUCKET)
         .upload(path, file, { upsert: false, contentType: file.type });

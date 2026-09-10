@@ -1,34 +1,1901 @@
-diff --git a/src/routes/signup.tsx b/src/routes/signup.tsx
-index 9529094..f3a8988 100644
---- a/src/routes/signup.tsx
-+++ b/src/routes/signup.tsx
-@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
- import { Eye, EyeOff, Loader2 } from "lucide-react";
- import { toast } from "sonner";
- import { supabase } from "@/integrations/supabase/client";
--import { lovable } from "@/integrations/lovable/index";
- import { Button } from "@/components/ui/button";
- import { Input } from "@/components/ui/input";
- import { Label } from "@/components/ui/label";
-@@ -93,15 +92,13 @@ function AuthPage() {
-       // Must be a public, same-origin URL. /auth/callback waits for the session
-       // and then forwards to the console, so the provider never lands on a
-       // protected page (which showed a 404 / bounced back to sign in).
--      const result = await lovable.auth.signInWithOAuth("google", {
--        redirect_uri: `${window.location.origin}/auth/callback`,
-+      const { error: err } = await supabase.auth.signInWithOAuth({
-+        provider: "google",
-+        options: { redirectTo: `${window.location.origin}/auth/callback` },
-       });
--      if (result.error) {
--        setError(translateError(t, result.error.message));
--        return;
--      }
--      if (result.redirected) return;
--      await navigate({ to: "/console" });
-+      if (err) throw err;
-+      // Supabase redirects the browser to Google; the callback route handles the session.
+diff -ruN -x .git -x node_modules -x .env pristine/src/components/shop/ShopPage.tsx work/src/components/shop/ShopPage.tsx
+--- /dev/null
++++ b/src/components/shop/ShopPage.tsx
+@@ -0,0 +1,592 @@
++import { useMemo, useRef, useState } from "react";
++import { useNavigate } from "@tanstack/react-router";
++import { useQuery } from "@tanstack/react-query";
++import { ImagePlus, Minus, Plus, Search, ShoppingBag, Loader2, X } from "lucide-react";
++import { supabase } from "@/integrations/supabase/client";
++import { SiteHeader } from "@/components/SiteHeader";
++import { LoadingState, EmptyState, ErrorState } from "@/components/States";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Badge } from "@/components/ui/badge";
++import { Card, CardContent } from "@/components/ui/card";
++import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
++import { useI18n, translateError } from "@/lib/i18n";
++import { callRpc } from "@/lib/rpc";
++import { money } from "@/lib/format";
++import {
++  IMAGE_TYPES,
++  MAX_IMAGE_BYTES,
++  PROOF_BUCKET,
++  SHOP_BUCKET,
++  fileExtension,
++  useSignedUrl,
++} from "@/lib/storage";
++
++
++type Variant = {
++  id: string;
++  name: string;
++  price: number;
++  sort_order: number;
++};
++type Product = {
++  id: string;
++  name: string;
++  description: string | null;
++  image_url: string | null;
++  stock: number;
++  sort_order: number;
++  product_variants: Variant[];
++};
++type CartLine = {
++  productId: string;
++  variantId: string;
++  productName: string;
++  variantName: string;
++  price: number;
++  stock: number;
++  qty: number;
++};
++
++function useShopData() {
++  return useQuery({
++    queryKey: ["shop"],
++    queryFn: async () => {
++      const { data: org, error: orgErr } = await supabase
++        .from("organizations")
++        .select("id, name, currency, is_open")
++        .order("created_at", { ascending: true })
++        .limit(1)
++        .maybeSingle();
++      if (orgErr) throw orgErr;
++      if (!org) return { org: null, products: [] as Product[] };
++
++      const { data: products, error: prodErr } = await supabase
++        .from("products")
++        .select(
++          "id, name, description, image_url, stock, sort_order, product_variants(id, name, price, sort_order, is_active)",
++        )
++        .eq("organization_id", org.id)
++        .eq("is_active", true)
++        .order("sort_order", { ascending: true });
++      if (prodErr) throw prodErr;
++
++      const cleaned: Product[] = (products ?? []).map((p) => ({
++        id: p.id,
++        name: p.name,
++        description: p.description,
++        image_url: p.image_url,
++        stock: Number(p.stock),
++        sort_order: p.sort_order,
++        product_variants: (p.product_variants ?? [])
++          .filter((v: { is_active: boolean }) => v.is_active)
++          .map((v: Variant) => ({ ...v, price: Number(v.price) }))
++          .sort((a: Variant, b: Variant) => a.sort_order - b.sort_order),
++      }));
++      return { org, products: cleaned.filter((p) => p.product_variants.length > 0) };
++    },
++  });
++}
++
++/** Active DuitNow QR for this shop only. Never fall back to another shop's QR. */
++function usePaymentQr(orgId: string, enabled: boolean) {
++  return useQuery({
++    queryKey: ["payment-qr", orgId],
++    enabled: enabled && Boolean(orgId),
++    queryFn: async () => {
++      const { data, error } = await supabase
++        .from("payment_qr")
++        .select("image_url, label")
++        .eq("organization_id", orgId)
++        .eq("is_active", true)
++        .order("created_at", { ascending: false })
++        .limit(1)
++        .maybeSingle();
++      if (error) throw error;
++      return data;
++    },
++  });
++}
++
++function ProductImage({ path, alt }: { path: string | null; alt: string }) {
++  const { data: url } = useSignedUrl(SHOP_BUCKET, path);
++  if (!url) {
++    return (
++      <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
++        <ShoppingBag className="h-6 w-6" aria-hidden />
++      </div>
++    );
++  }
++  return (
++    <img
++      src={url}
++      alt={alt}
++      loading="lazy"
++      className="h-32 w-full rounded-lg object-cover"
++    />
++  );
++}
++
++export function ShopPage() {
++  const { t } = useI18n();
++  const navigate = useNavigate();
++  const { data, isLoading, isError, refetch } = useShopData();
++  const [search, setSearch] = useState("");
++  const [cart, setCart] = useState<Record<string, CartLine>>({});
++  const [open, setOpen] = useState(false);
++
++  const currency = data?.org?.currency ?? "RM";
++  const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
++  const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
++  const count = lines.reduce((sum, l) => sum + l.qty, 0);
++
++  const filtered = useMemo(() => {
++    const q = search.trim().toLowerCase();
++    if (!q) return data?.products ?? [];
++    return (data?.products ?? []).filter(
++      (p) =>
++        p.name.toLowerCase().includes(q) ||
++        (p.description ?? "").toLowerCase().includes(q) ||
++        p.product_variants.some((v) => v.name.toLowerCase().includes(q)),
++    );
++  }, [data, search]);
++
++  function addToCart(product: Product, variant: Variant) {
++    setCart((prev) => {
++      const current = prev[variant.id];
++      const usedByOtherVariants = Object.values(prev)
++        .filter((line) => line.productId === product.id && line.variantId !== variant.id)
++        .reduce((sum, line) => sum + line.qty, 0);
++      const qty = Math.min((current?.qty ?? 0) + 1, Math.max(0, product.stock - usedByOtherVariants));
++      if (qty === 0) return prev;
++      return {
++        ...prev,
++        [variant.id]: {
++          productId: product.id,
++          variantId: variant.id,
++          productName: product.name,
++          variantName: variant.name,
++          price: variant.price,
++          stock: product.stock,
++          qty,
++        },
++      };
++    });
++  }
++
++  function setQty(variantId: string, qty: number) {
++    setCart((prev) => {
++      const line = prev[variantId];
++      if (!line) return prev;
++      const usedByOtherVariants = Object.values(prev)
++        .filter((candidate) => candidate.productId === line.productId && candidate.variantId !== variantId)
++        .reduce((sum, candidate) => sum + candidate.qty, 0);
++      const next = Math.max(0, Math.min(qty, line.stock - usedByOtherVariants));
++      if (next === 0) {
++        const { [variantId]: _removed, ...rest } = prev;
++        return rest;
++      }
++      return { ...prev, [variantId]: { ...line, qty: next } };
++    });
++  }
++
++  return (
++    <div className="min-h-screen bg-background pb-24">
++      <SiteHeader subtitle={data?.org?.name} />
++
++      <main className="mx-auto max-w-6xl px-4 py-6">
++        <div className="mb-6">
++          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
++          {data?.org && !data.org.is_open ? (
++            <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
++              {t("shop.closed")}
++            </p>
++          ) : null}
++        </div>
++
++        <div className="relative mb-5 max-w-sm">
++          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
++          <Input
++            value={search}
++            onChange={(e) => setSearch(e.target.value)}
++            placeholder={t("shop.searchPlaceholder")}
++            aria-label={t("common.search")}
++            className="h-11 pl-9"
++          />
++        </div>
++
++        {isLoading ? <LoadingState /> : null}
++        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
++        {!isLoading && !isError && filtered.length === 0 ? (
++          <EmptyState label={t("shop.empty")} />
++        ) : null}
++
++        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
++          {filtered.map((product) => (
++            <Card key={product.id} className="overflow-hidden">
++              <CardContent className="flex flex-col gap-3 p-4">
++                <ProductImage path={product.image_url} alt={product.name} />
++                <div>
++                  <h2 className="text-base font-semibold leading-tight">{product.name}</h2>
++                  {product.description ? (
++                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
++                      {product.description}
++                    </p>
++                  ) : null}
++                  <p className="mt-1 text-xs text-muted-foreground">
++                    {product.stock > 0 ? `${product.stock} ${t("shop.left")}` : t("shop.soldOut")}
++                  </p>
++                </div>
++                <ul className="flex flex-col gap-2">
++                  {product.product_variants.map((variant) => {
++                    const inCart = cart[variant.id]?.qty ?? 0;
++                    const productQtyInCart = Object.values(cart)
++                      .filter((line) => line.productId === product.id)
++                      .reduce((sum, line) => sum + line.qty, 0);
++                    const soldOut = product.stock <= 0;
++                    return (
++                      <li
++                        key={variant.id}
++                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
++                      >
++                        <div className="min-w-0">
++                          <p className="truncate text-sm font-medium">{variant.name}</p>
++                          <p className="text-xs text-muted-foreground">{money(variant.price, currency)}</p>
++                        </div>
++                        {soldOut ? (
++                          <Badge variant="secondary">{t("shop.soldOut")}</Badge>
++                        ) : inCart > 0 ? (
++                          <div className="flex items-center gap-1">
++                            <Button
++                              size="icon"
++                              variant="outline"
++                              className="h-9 w-9"
++                              aria-label="-"
++                              onClick={() => setQty(variant.id, inCart - 1)}
++                            >
++                              <Minus className="h-4 w-4" />
++                            </Button>
++                            <span className="w-6 text-center text-sm font-semibold">{inCart}</span>
++                            <Button
++                              size="icon"
++                              variant="outline"
++                              className="h-9 w-9"
++                              aria-label="+"
++                              disabled={productQtyInCart >= product.stock}
++                              onClick={() => setQty(variant.id, inCart + 1)}
++                            >
++                              <Plus className="h-4 w-4" />
++                            </Button>
++                          </div>
++                        ) : (
++                          <Button
++                            size="sm"
++                            className="h-9"
++                            disabled={productQtyInCart >= product.stock}
++                            onClick={() => addToCart(product, variant)}
++                          >
++                            {t("shop.add")}
++                          </Button>
++                        )}
++                      </li>
++                    );
++                  })}
++                </ul>
++              </CardContent>
++            </Card>
++          ))}
++        </div>
++      </main>
++
++      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur no-print">
++        <div className="mx-auto flex max-w-6xl items-center gap-3">
++          <div className="min-w-0 flex-1">
++            <p className="text-xs text-muted-foreground">{t("shop.cart")}</p>
++            <p className="truncate text-sm font-semibold">
++              {count} · {money(subtotal, currency)}
++            </p>
++          </div>
++          <Sheet open={open} onOpenChange={setOpen}>
++            <SheetTrigger asChild>
++              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
++                {t("shop.checkout")}
++              </Button>
++            </SheetTrigger>
++            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
++              <SheetHeader>
++                <SheetTitle>{t("shop.checkout")}</SheetTitle>
++              </SheetHeader>
++              {data?.org ? (
++                <CheckoutForm
++                  orgId={data.org.id}
++                  currency={currency}
++                  lines={lines}
++                  subtotal={subtotal}
++                  onQty={setQty}
++                  onDone={(token) => {
++                    setCart({});
++                    setOpen(false);
++                    void navigate({ to: "/order/$token", params: { token } });
++                  }}
++                />
++              ) : null}
++            </SheetContent>
++          </Sheet>
++        </div>
++      </div>
++    </div>
++  );
++}
++
++function CheckoutForm({
++  orgId,
++  currency,
++  lines,
++  subtotal,
++  onQty,
++  onDone,
++}: {
++  orgId: string;
++  currency: string;
++  lines: CartLine[];
++  subtotal: number;
++  onQty: (variantId: string, qty: number) => void;
++  onDone: (token: string) => void;
++}) {
++  const { t } = useI18n();
++  const [name, setName] = useState("");
++  const [age, setAge] = useState("");
++  const [klass, setKlass] = useState("");
++  const [promo, setPromo] = useState("");
++  const [method, setMethod] = useState<"cash" | "duitnow" | null>(null);
++  const [proof, setProof] = useState<File | null>(null);
++  const proofRef = useRef<HTMLInputElement>(null);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const qrQuery = usePaymentQr(orgId, method === "duitnow");
++  const { data: qrUrl } = useSignedUrl(SHOP_BUCKET, qrQuery.data?.image_url ?? null);
++
++  function pickProof(file: File | undefined) {
++    if (!file) return;
++    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
++      setError(t("order.imageOnly"));
++      if (proofRef.current) proofRef.current.value = "";
 +      return;
-     } catch (err) {
-       setError(translateError(t, err instanceof Error ? err.message : null));
-     } finally {
++    }
++    setError(null);
++    setProof(file);
++  }
++
++  async function submit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++    if (name.trim().length < 2) return setError(t("err.INVALID_NAME"));
++    if (!method) return setError(t("shop.selectPayment"));
++    if (lines.length === 0) return setError(t("err.EMPTY_CART"));
++    if (method === "duitnow" && !proof) return setError(t("shop.proofRequired"));
++
++    setBusy(true);
++    try {
++      const data = await callRpc<{ access_token?: string }>("create_public_order", {
++        p_org: orgId,
++        p_buyer_name: name.trim(),
++        p_buyer_age: age ? Number(age) : null,
++        p_buyer_class: klass.trim() || null,
++        p_items: lines.map((l) => ({ variant_id: l.variantId, quantity: l.qty })),
++        p_payment_method: method,
++        p_promo_code: promo.trim() || null,
++      });
++      const token = data?.access_token;
++      if (!token) throw new Error("ORDER_NOT_FOUND");
++
++      // The receipt photo is held in the browser until the order exists, so an
++      // abandoned checkout never leaves an unattached file in storage.
++      if (method === "duitnow" && proof) {
++        const path = `${orgId}/${token.slice(0, 16)}-${Date.now()}.${fileExtension(proof)}`;
++        const { error: upErr } = await supabase.storage
++          .from(PROOF_BUCKET)
++          .upload(path, proof, { upsert: false, contentType: proof.type });
++        if (upErr) throw upErr;
++        await callRpc("attach_payment_proof", { p_token: token, p_path: path });
++      }
++
++      onDone(token);
++    } catch (err) {
++      setError(translateError(t, err instanceof Error ? err.message : null));
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (lines.length === 0) {
++    return <p className="py-8 text-sm text-muted-foreground">{t("shop.cartEmpty")}</p>;
++  }
++
++  return (
++    <form className="flex flex-col gap-5 py-4" onSubmit={submit} noValidate>
++      <ul className="flex flex-col gap-2">
++        {lines.map((l) => (
++          <li key={l.variantId} className="flex items-center justify-between gap-2 text-sm">
++            <span className="min-w-0 truncate">
++              {l.productName} · {l.variantName}
++            </span>
++            <span className="flex items-center gap-1">
++              <Button
++                type="button"
++                size="icon"
++                variant="outline"
++                className="h-8 w-8"
++                aria-label="-"
++                onClick={() => onQty(l.variantId, l.qty - 1)}
++              >
++                <Minus className="h-3 w-3" />
++              </Button>
++              <span className="w-5 text-center">{l.qty}</span>
++              <Button
++                type="button"
++                size="icon"
++                variant="outline"
++                className="h-8 w-8"
++                aria-label="+"
++                disabled={l.qty >= l.stock}
++                onClick={() => onQty(l.variantId, l.qty + 1)}
++              >
++                <Plus className="h-3 w-3" />
++              </Button>
++              <span className="w-16 text-right font-medium">{money(l.price * l.qty, currency)}</span>
++            </span>
++          </li>
++        ))}
++      </ul>
++
++      <div className="flex justify-between border-t pt-3 text-sm font-semibold">
++        <span>{t("common.subtotal")}</span>
++        <span>{money(subtotal, currency)}</span>
++      </div>
++
++      <fieldset className="grid gap-3">
++        <legend className="mb-1 text-sm font-semibold">{t("shop.yourDetails")}</legend>
++        <div className="grid gap-2">
++          <Label htmlFor="buyer-name">{t("shop.buyerName")}</Label>
++          <Input id="buyer-name" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
++        </div>
++        <div className="grid grid-cols-2 gap-2">
++          <div className="grid gap-2">
++            <Label htmlFor="buyer-age">{t("shop.buyerAge")}</Label>
++            <Input
++              id="buyer-age"
++              type="number"
++              min={5}
++              max={100}
++              inputMode="numeric"
++              value={age}
++              onChange={(e) => setAge(e.target.value)}
++              className="h-11"
++            />
++          </div>
++          <div className="grid gap-2">
++            <Label htmlFor="buyer-class">{t("shop.buyerClass")}</Label>
++            <Input id="buyer-class" value={klass} onChange={(e) => setKlass(e.target.value)} className="h-11" />
++          </div>
++        </div>
++      </fieldset>
++
++      <fieldset className="grid gap-2">
++        <legend className="mb-1 text-sm font-semibold">{t("shop.payment")}</legend>
++        <div className="grid grid-cols-2 gap-2">
++          <Button
++            type="button"
++            variant={method === "cash" ? "default" : "outline"}
++            className="h-11"
++            onClick={() => setMethod("cash")}
++          >
++            {t("shop.cash")}
++          </Button>
++          <Button
++            type="button"
++            variant={method === "duitnow" ? "default" : "outline"}
++            className="h-11"
++            onClick={() => setMethod("duitnow")}
++          >
++            {t("shop.duitnow")}
++          </Button>
++        </div>
++        {method ? (
++          <p className="text-xs text-muted-foreground">
++            {method === "cash" ? t("shop.cashNote") : t("shop.duitnowNote")}
++          </p>
++        ) : null}
++
++        {method === "duitnow" ? (
++          <div className="mt-1 grid gap-3 rounded-lg border p-3">
++            {qrUrl ? (
++              <img
++                src={qrUrl}
++                alt={qrQuery.data?.label ?? "DuitNow QR"}
++                className="mx-auto max-h-56 rounded-md border"
++              />
++            ) : null}
++            <input
++              ref={proofRef}
++              type="file"
++              accept="image/*"
++              className="hidden"
++              onChange={(e) => pickProof(e.target.files?.[0])}
++            />
++            {proof ? (
++              <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
++                <span className="min-w-0 flex-1 truncate">{proof.name}</span>
++                <Button
++                  type="button"
++                  size="icon"
++                  variant="ghost"
++                  className="h-8 w-8"
++                  aria-label={t("common.remove")}
++                  onClick={() => {
++                    setProof(null);
++                    if (proofRef.current) proofRef.current.value = "";
++                  }}
++                >
++                  <X className="h-4 w-4" />
++                </Button>
++              </div>
++            ) : (
++              <button
++                type="button"
++                onClick={() => proofRef.current?.click()}
++                className="flex w-full flex-col items-center gap-1 rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground transition-colors hover:bg-accent"
++              >
++                <ImagePlus className="h-5 w-5" aria-hidden />
++                <span className="font-medium text-foreground">{t("order.uploadProof")}</span>
++                <span className="text-xs">{t("shop.proofHint")}</span>
++              </button>
++            )}
++          </div>
++        ) : null}
++      </fieldset>
++
++      <div className="grid gap-2">
++        <Label htmlFor="promo">{t("shop.promo")}</Label>
++        <Input
++          id="promo"
++          value={promo}
++          onChange={(e) => setPromo(e.target.value.toUpperCase())}
++          placeholder={t("shop.promoPlaceholder")}
++          className="h-11"
++        />
++      </div>
++
++      {error ? (
++        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
++          {error}
++        </p>
++      ) : null}
++
++      <Button type="submit" className="h-12" disabled={busy}>
++        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
++        {busy ? t("shop.placing") : t("shop.placeOrder")}
++      </Button>
++    </form>
++  );
++}
+diff -ruN -x .git -x node_modules -x .env pristine/src/lib/i18n.tsx work/src/lib/i18n.tsx
+--- a/src/lib/i18n.tsx
++++ b/src/lib/i18n.tsx
+@@ -51,6 +51,7 @@
+   "common.edit": { en: "Edit", zh: "编辑", ms: "Sunting" },
+   "common.add": { en: "Add", zh: "添加", ms: "Tambah" },
+   "common.close": { en: "Close", zh: "关闭", ms: "Tutup" },
++  "common.remove": { en: "Remove", zh: "移除", ms: "Buang" },
+   "common.search": { en: "Search", zh: "搜索", ms: "Cari" },
+   "common.none": { en: "None", zh: "无", ms: "Tiada" },
+   "common.error": {
+@@ -122,6 +123,16 @@
+     zh: "请选择付款方式。",
+     ms: "Sila pilih kaedah pembayaran.",
+   },
++  "shop.proofRequired": {
++    en: "Please attach your DuitNow payment receipt before placing the order.",
++    zh: "请先上传 DuitNow 付款凭证，再提交订单。",
++    ms: "Sila lampirkan resit pembayaran DuitNow sebelum menghantar pesanan.",
++  },
++  "shop.proofHint": {
++    en: "Tap to attach a screenshot or photo (image, max 5 MB)",
++    zh: "点按上传截图或照片（图片，最大 5MB）",
++    ms: "Ketik untuk lampirkan tangkapan skrin atau foto (imej, maks 5 MB)",
++  },
+   "shop.promo": { en: "Promo code", zh: "优惠码", ms: "Kod promosi" },
+   "shop.promoPlaceholder": { en: "Optional", zh: "选填", ms: "Pilihan" },
+   "shop.placeOrder": { en: "Place order", zh: "提交订单", ms: "Hantar pesanan" },
+@@ -336,6 +347,16 @@
+   },
+   "err.EMPTY_CART": { en: "Your cart is empty.", zh: "购物车是空的。", ms: "Troli anda kosong." },
+   "err.INVALID_NAME": { en: "Please enter your name.", zh: "请输入姓名。", ms: "Sila masukkan nama anda." },
++  "err.INVALID_AGE": {
++    en: "Please enter an age between 5 and 100.",
++    zh: "请输入 5 至 100 之间的年龄。",
++    ms: "Sila masukkan umur antara 5 hingga 100.",
++  },
++  "err.INVALID_CLASS": {
++    en: "Class is too long.",
++    zh: "班级名称过长。",
++    ms: "Nama kelas terlalu panjang.",
++  },
+   "err.PRODUCT_INACTIVE": {
+     en: "A product is no longer on sale.",
+     zh: "某个产品已下架。",
+diff -ruN -x .git -x node_modules -x .env pristine/src/routes/index.tsx work/src/routes/index.tsx
+--- a/src/routes/index.tsx
++++ b/src/routes/index.tsx
+@@ -1,20 +1,5 @@
+-import { useMemo, useState } from "react";
+-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+-import { useQuery } from "@tanstack/react-query";
+-import { Minus, Plus, Search, ShoppingBag, Loader2 } from "lucide-react";
+-import { supabase } from "@/integrations/supabase/client";
+-import { SiteHeader } from "@/components/SiteHeader";
+-import { LoadingState, EmptyState, ErrorState } from "@/components/States";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
+-import { Label } from "@/components/ui/label";
+-import { Badge } from "@/components/ui/badge";
+-import { Card, CardContent } from "@/components/ui/card";
+-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+-import { useI18n, translateError } from "@/lib/i18n";
+-import { callRpc } from "@/lib/rpc";
+-import { money } from "@/lib/format";
+-import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
++import { createFileRoute } from "@tanstack/react-router";
++import { ShopPage } from "@/components/shop/ShopPage";
+ 
+ export const Route = createFileRoute("/")({
+   head: () => ({
+@@ -30,479 +15,9 @@
+         property: "og:description",
+         content: "Browse drinks, pay by cash or DuitNow, and collect with a pickup code.",
+       },
++      { property: "og:type", content: "website" },
++      { name: "twitter:card", content: "summary_large_image" },
+     ],
+   }),
+-  component: Shop,
++  component: ShopPage,
+ });
+-
+-type Variant = {
+-  id: string;
+-  name: string;
+-  price: number;
+-  sort_order: number;
+-};
+-type Product = {
+-  id: string;
+-  name: string;
+-  description: string | null;
+-  image_url: string | null;
+-  stock: number;
+-  sort_order: number;
+-  product_variants: Variant[];
+-};
+-type CartLine = {
+-  productId: string;
+-  variantId: string;
+-  productName: string;
+-  variantName: string;
+-  price: number;
+-  stock: number;
+-  qty: number;
+-};
+-
+-function useShopData() {
+-  return useQuery({
+-    queryKey: ["shop"],
+-    queryFn: async () => {
+-      const { data: org, error: orgErr } = await supabase
+-        .from("organizations")
+-        .select("id, name, currency, is_open")
+-        .order("created_at", { ascending: true })
+-        .limit(1)
+-        .maybeSingle();
+-      if (orgErr) throw orgErr;
+-      if (!org) return { org: null, products: [] as Product[] };
+-
+-      const { data: products, error: prodErr } = await supabase
+-        .from("products")
+-        .select(
+-          "id, name, description, image_url, stock, sort_order, product_variants(id, name, price, sort_order, is_active)",
+-        )
+-        .eq("organization_id", org.id)
+-        .eq("is_active", true)
+-        .order("sort_order", { ascending: true });
+-      if (prodErr) throw prodErr;
+-
+-      const cleaned: Product[] = (products ?? []).map((p) => ({
+-        id: p.id,
+-        name: p.name,
+-        description: p.description,
+-        image_url: p.image_url,
+-        stock: Number(p.stock),
+-        sort_order: p.sort_order,
+-        product_variants: (p.product_variants ?? [])
+-          .filter((v: { is_active: boolean }) => v.is_active)
+-          .map((v: Variant) => ({ ...v, price: Number(v.price) }))
+-          .sort((a: Variant, b: Variant) => a.sort_order - b.sort_order),
+-      }));
+-      return { org, products: cleaned.filter((p) => p.product_variants.length > 0) };
+-    },
+-  });
+-}
+-
+-function ProductImage({ path, alt }: { path: string | null; alt: string }) {
+-  const { data: url } = useSignedUrl(SHOP_BUCKET, path);
+-  if (!url) {
+-    return (
+-      <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
+-        <ShoppingBag className="h-6 w-6" aria-hidden />
+-      </div>
+-    );
+-  }
+-  return (
+-    <img
+-      src={url}
+-      alt={alt}
+-      loading="lazy"
+-      className="h-32 w-full rounded-lg object-cover"
+-    />
+-  );
+-}
+-
+-function Shop() {
+-  const { t } = useI18n();
+-  const navigate = useNavigate();
+-  const { data, isLoading, isError, refetch } = useShopData();
+-  const [search, setSearch] = useState("");
+-  const [cart, setCart] = useState<Record<string, CartLine>>({});
+-  const [open, setOpen] = useState(false);
+-
+-  const currency = data?.org?.currency ?? "RM";
+-  const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
+-  const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+-  const count = lines.reduce((sum, l) => sum + l.qty, 0);
+-
+-  const filtered = useMemo(() => {
+-    const q = search.trim().toLowerCase();
+-    if (!q) return data?.products ?? [];
+-    return (data?.products ?? []).filter(
+-      (p) =>
+-        p.name.toLowerCase().includes(q) ||
+-        (p.description ?? "").toLowerCase().includes(q) ||
+-        p.product_variants.some((v) => v.name.toLowerCase().includes(q)),
+-    );
+-  }, [data, search]);
+-
+-  function addToCart(product: Product, variant: Variant) {
+-    setCart((prev) => {
+-      const current = prev[variant.id];
+-      const usedByOtherVariants = Object.values(prev)
+-        .filter((line) => line.productId === product.id && line.variantId !== variant.id)
+-        .reduce((sum, line) => sum + line.qty, 0);
+-      const qty = Math.min((current?.qty ?? 0) + 1, Math.max(0, product.stock - usedByOtherVariants));
+-      if (qty === 0) return prev;
+-      return {
+-        ...prev,
+-        [variant.id]: {
+-          productId: product.id,
+-          variantId: variant.id,
+-          productName: product.name,
+-          variantName: variant.name,
+-          price: variant.price,
+-          stock: product.stock,
+-          qty,
+-        },
+-      };
+-    });
+-  }
+-
+-  function setQty(variantId: string, qty: number) {
+-    setCart((prev) => {
+-      const line = prev[variantId];
+-      if (!line) return prev;
+-      const usedByOtherVariants = Object.values(prev)
+-        .filter((candidate) => candidate.productId === line.productId && candidate.variantId !== variantId)
+-        .reduce((sum, candidate) => sum + candidate.qty, 0);
+-      const next = Math.max(0, Math.min(qty, line.stock - usedByOtherVariants));
+-      if (next === 0) {
+-        const { [variantId]: _removed, ...rest } = prev;
+-        return rest;
+-      }
+-      return { ...prev, [variantId]: { ...line, qty: next } };
+-    });
+-  }
+-
+-  return (
+-    <div className="min-h-screen bg-background pb-24">
+-      <SiteHeader subtitle={data?.org?.name} />
+-
+-      <main className="mx-auto max-w-6xl px-4 py-6">
+-        <div className="mb-6">
+-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
+-          {data?.org && !data.org.is_open ? (
+-            <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
+-              {t("shop.closed")}
+-            </p>
+-          ) : null}
+-        </div>
+-
+-        <div className="relative mb-5 max-w-sm">
+-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+-          <Input
+-            value={search}
+-            onChange={(e) => setSearch(e.target.value)}
+-            placeholder={t("shop.searchPlaceholder")}
+-            aria-label={t("common.search")}
+-            className="h-11 pl-9"
+-          />
+-        </div>
+-
+-        {isLoading ? <LoadingState /> : null}
+-        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
+-        {!isLoading && !isError && filtered.length === 0 ? (
+-          <EmptyState label={t("shop.empty")} />
+-        ) : null}
+-
+-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+-          {filtered.map((product) => (
+-            <Card key={product.id} className="overflow-hidden">
+-              <CardContent className="flex flex-col gap-3 p-4">
+-                <ProductImage path={product.image_url} alt={product.name} />
+-                <div>
+-                  <h2 className="text-base font-semibold leading-tight">{product.name}</h2>
+-                  {product.description ? (
+-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+-                      {product.description}
+-                    </p>
+-                  ) : null}
+-                  <p className="mt-1 text-xs text-muted-foreground">
+-                    {product.stock > 0 ? `${product.stock} ${t("shop.left")}` : t("shop.soldOut")}
+-                  </p>
+-                </div>
+-                <ul className="flex flex-col gap-2">
+-                  {product.product_variants.map((variant) => {
+-                    const inCart = cart[variant.id]?.qty ?? 0;
+-                    const productQtyInCart = Object.values(cart)
+-                      .filter((line) => line.productId === product.id)
+-                      .reduce((sum, line) => sum + line.qty, 0);
+-                    const soldOut = product.stock <= 0;
+-                    return (
+-                      <li
+-                        key={variant.id}
+-                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+-                      >
+-                        <div className="min-w-0">
+-                          <p className="truncate text-sm font-medium">{variant.name}</p>
+-                          <p className="text-xs text-muted-foreground">{money(variant.price, currency)}</p>
+-                        </div>
+-                        {soldOut ? (
+-                          <Badge variant="secondary">{t("shop.soldOut")}</Badge>
+-                        ) : inCart > 0 ? (
+-                          <div className="flex items-center gap-1">
+-                            <Button
+-                              size="icon"
+-                              variant="outline"
+-                              className="h-9 w-9"
+-                              aria-label="-"
+-                              onClick={() => setQty(variant.id, inCart - 1)}
+-                            >
+-                              <Minus className="h-4 w-4" />
+-                            </Button>
+-                            <span className="w-6 text-center text-sm font-semibold">{inCart}</span>
+-                            <Button
+-                              size="icon"
+-                              variant="outline"
+-                              className="h-9 w-9"
+-                              aria-label="+"
+-                              disabled={productQtyInCart >= product.stock}
+-                              onClick={() => setQty(variant.id, inCart + 1)}
+-                            >
+-                              <Plus className="h-4 w-4" />
+-                            </Button>
+-                          </div>
+-                        ) : (
+-                          <Button
+-                            size="sm"
+-                            className="h-9"
+-                            disabled={productQtyInCart >= product.stock}
+-                            onClick={() => addToCart(product, variant)}
+-                          >
+-                            {t("shop.add")}
+-                          </Button>
+-                        )}
+-                      </li>
+-                    );
+-                  })}
+-                </ul>
+-              </CardContent>
+-            </Card>
+-          ))}
+-        </div>
+-      </main>
+-
+-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur no-print">
+-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+-          <div className="min-w-0 flex-1">
+-            <p className="text-xs text-muted-foreground">{t("shop.cart")}</p>
+-            <p className="truncate text-sm font-semibold">
+-              {count} · {money(subtotal, currency)}
+-            </p>
+-          </div>
+-          <Sheet open={open} onOpenChange={setOpen}>
+-            <SheetTrigger asChild>
+-              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
+-                {t("shop.checkout")}
+-              </Button>
+-            </SheetTrigger>
+-            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+-              <SheetHeader>
+-                <SheetTitle>{t("shop.checkout")}</SheetTitle>
+-              </SheetHeader>
+-              {data?.org ? (
+-                <CheckoutForm
+-                  orgId={data.org.id}
+-                  currency={currency}
+-                  lines={lines}
+-                  subtotal={subtotal}
+-                  onQty={setQty}
+-                  onDone={(token) => {
+-                    setCart({});
+-                    setOpen(false);
+-                    void navigate({ to: "/order/$token", params: { token } });
+-                  }}
+-                />
+-              ) : null}
+-            </SheetContent>
+-          </Sheet>
+-        </div>
+-      </div>
+-    </div>
+-  );
+-}
+-
+-function CheckoutForm({
+-  orgId,
+-  currency,
+-  lines,
+-  subtotal,
+-  onQty,
+-  onDone,
+-}: {
+-  orgId: string;
+-  currency: string;
+-  lines: CartLine[];
+-  subtotal: number;
+-  onQty: (variantId: string, qty: number) => void;
+-  onDone: (token: string) => void;
+-}) {
+-  const { t } = useI18n();
+-  const [name, setName] = useState("");
+-  const [age, setAge] = useState("");
+-  const [klass, setKlass] = useState("");
+-  const [promo, setPromo] = useState("");
+-  const [method, setMethod] = useState<"cash" | "duitnow" | null>(null);
+-  const [busy, setBusy] = useState(false);
+-  const [error, setError] = useState<string | null>(null);
+-
+-  async function submit(e: React.FormEvent) {
+-    e.preventDefault();
+-    setError(null);
+-    if (name.trim().length < 2) return setError(t("err.INVALID_NAME"));
+-    if (!method) return setError(t("shop.selectPayment"));
+-    if (lines.length === 0) return setError(t("err.EMPTY_CART"));
+-
+-    setBusy(true);
+-    try {
+-      const data = await callRpc<{ access_token?: string }>("create_public_order", {
+-        p_org: orgId,
+-        p_buyer_name: name.trim(),
+-        p_buyer_age: age ? Number(age) : null,
+-        p_buyer_class: klass.trim() || null,
+-        p_items: lines.map((l) => ({ variant_id: l.variantId, quantity: l.qty })),
+-        p_payment_method: method,
+-        p_promo_code: promo.trim() || null,
+-      });
+-      const token = data?.access_token;
+-      if (!token) throw new Error("ORDER_NOT_FOUND");
+-      onDone(token);
+-    } catch (err) {
+-      setError(translateError(t, err instanceof Error ? err.message : null));
+-    } finally {
+-      setBusy(false);
+-    }
+-  }
+-
+-  if (lines.length === 0) {
+-    return <p className="py-8 text-sm text-muted-foreground">{t("shop.cartEmpty")}</p>;
+-  }
+-
+-  return (
+-    <form className="flex flex-col gap-5 py-4" onSubmit={submit} noValidate>
+-      <ul className="flex flex-col gap-2">
+-        {lines.map((l) => (
+-          <li key={l.variantId} className="flex items-center justify-between gap-2 text-sm">
+-            <span className="min-w-0 truncate">
+-              {l.productName} · {l.variantName}
+-            </span>
+-            <span className="flex items-center gap-1">
+-              <Button
+-                type="button"
+-                size="icon"
+-                variant="outline"
+-                className="h-8 w-8"
+-                aria-label="-"
+-                onClick={() => onQty(l.variantId, l.qty - 1)}
+-              >
+-                <Minus className="h-3 w-3" />
+-              </Button>
+-              <span className="w-5 text-center">{l.qty}</span>
+-              <Button
+-                type="button"
+-                size="icon"
+-                variant="outline"
+-                className="h-8 w-8"
+-                aria-label="+"
+-                disabled={l.qty >= l.stock}
+-                onClick={() => onQty(l.variantId, l.qty + 1)}
+-              >
+-                <Plus className="h-3 w-3" />
+-              </Button>
+-              <span className="w-16 text-right font-medium">{money(l.price * l.qty, currency)}</span>
+-            </span>
+-          </li>
+-        ))}
+-      </ul>
+-
+-      <div className="flex justify-between border-t pt-3 text-sm font-semibold">
+-        <span>{t("common.subtotal")}</span>
+-        <span>{money(subtotal, currency)}</span>
+-      </div>
+-
+-      <fieldset className="grid gap-3">
+-        <legend className="mb-1 text-sm font-semibold">{t("shop.yourDetails")}</legend>
+-        <div className="grid gap-2">
+-          <Label htmlFor="buyer-name">{t("shop.buyerName")}</Label>
+-          <Input id="buyer-name" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+-        </div>
+-        <div className="grid grid-cols-2 gap-2">
+-          <div className="grid gap-2">
+-            <Label htmlFor="buyer-age">{t("shop.buyerAge")}</Label>
+-            <Input
+-              id="buyer-age"
+-              type="number"
+-              min={5}
+-              max={100}
+-              inputMode="numeric"
+-              value={age}
+-              onChange={(e) => setAge(e.target.value)}
+-              className="h-11"
+-            />
+-          </div>
+-          <div className="grid gap-2">
+-            <Label htmlFor="buyer-class">{t("shop.buyerClass")}</Label>
+-            <Input id="buyer-class" value={klass} onChange={(e) => setKlass(e.target.value)} className="h-11" />
+-          </div>
+-        </div>
+-      </fieldset>
+-
+-      <fieldset className="grid gap-2">
+-        <legend className="mb-1 text-sm font-semibold">{t("shop.payment")}</legend>
+-        <div className="grid grid-cols-2 gap-2">
+-          <Button
+-            type="button"
+-            variant={method === "cash" ? "default" : "outline"}
+-            className="h-11"
+-            onClick={() => setMethod("cash")}
+-          >
+-            {t("shop.cash")}
+-          </Button>
+-          <Button
+-            type="button"
+-            variant={method === "duitnow" ? "default" : "outline"}
+-            className="h-11"
+-            onClick={() => setMethod("duitnow")}
+-          >
+-            {t("shop.duitnow")}
+-          </Button>
+-        </div>
+-        {method ? (
+-          <p className="text-xs text-muted-foreground">
+-            {method === "cash" ? t("shop.cashNote") : t("shop.duitnowNote")}
+-          </p>
+-        ) : null}
+-      </fieldset>
+-
+-      <div className="grid gap-2">
+-        <Label htmlFor="promo">{t("shop.promo")}</Label>
+-        <Input
+-          id="promo"
+-          value={promo}
+-          onChange={(e) => setPromo(e.target.value.toUpperCase())}
+-          placeholder={t("shop.promoPlaceholder")}
+-          className="h-11"
+-        />
+-      </div>
+-
+-      {error ? (
+-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+-          {error}
+-        </p>
+-      ) : null}
+-
+-      <Button type="submit" className="h-12" disabled={busy}>
+-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+-        {busy ? t("shop.placing") : t("shop.placeOrder")}
+-      </Button>
+-    </form>
+-  );
+-}
+diff -ruN -x .git -x node_modules -x .env pristine/src/routes/order.$token.tsx work/src/routes/order.$token.tsx
+--- a/src/routes/order.$token.tsx
++++ b/src/routes/order.$token.tsx
+@@ -42,6 +42,7 @@
+   line_total: number;
+ };
+ type OrderView = {
++  organization_id: string;
+   organization_name: string;
+   currency: string;
+   order_number: string;
+@@ -79,13 +80,15 @@
+   const order = orderQuery.data;
+ 
+   const qrQuery = useQuery({
+-    queryKey: ["qr", order?.organization_name],
+-    enabled: order?.payment_method === "duitnow",
++    queryKey: ["payment-qr", order?.organization_id],
++    enabled: order?.payment_method === "duitnow" && Boolean(order?.organization_id),
+     queryFn: async () => {
+       const { data, error } = await supabase
+         .from("payment_qr")
+         .select("image_url, label")
++        .eq("organization_id", order!.organization_id)
+         .eq("is_active", true)
++        .order("created_at", { ascending: false })
+         .limit(1)
+         .maybeSingle();
+       if (error) throw error;
+@@ -105,14 +108,10 @@
+     }
+     setUploading(true);
+     try {
+-      const { data: orgRow } = await supabase
+-        .from("organizations")
+-        .select("id")
+-        .order("created_at", { ascending: true })
+-        .limit(1)
+-        .maybeSingle();
+-      if (!orgRow) throw new Error("ORG_NOT_FOUND");
+-      const path = `${orgRow.id}/${token.slice(0, 16)}-${Date.now()}.${fileExtension(file)}`;
++      // Must be the order's own shop: the owner read policy keys off this folder.
++      const orgId = order?.organization_id;
++      if (!orgId) throw new Error("ORG_NOT_FOUND");
++      const path = `${orgId}/${token.slice(0, 16)}-${Date.now()}.${fileExtension(file)}`;
+       const { error: upErr } = await supabase.storage
+         .from(PROOF_BUCKET)
+         .upload(path, file, { upsert: false, contentType: file.type });
+diff -ruN -x .git -x node_modules -x .env pristine/src/routes/place_order.tsx work/src/routes/place_order.tsx
+--- a/src/routes/place_order.tsx
++++ b/src/routes/place_order.tsx
+@@ -1,508 +1,24 @@
+-import { useMemo, useState } from "react";
+-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+-import { useQuery } from "@tanstack/react-query";
+-import { Minus, Plus, Search, ShoppingBag, Loader2 } from "lucide-react";
+-import { supabase } from "@/integrations/supabase/client";
+-import { SiteHeader } from "@/components/SiteHeader";
+-import { LoadingState, EmptyState, ErrorState } from "@/components/States";
+-import { Button } from "@/components/ui/button";
+-import { Input } from "@/components/ui/input";
+-import { Label } from "@/components/ui/label";
+-import { Badge } from "@/components/ui/badge";
+-import { Card, CardContent } from "@/components/ui/card";
+-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+-import { useI18n, translateError } from "@/lib/i18n";
+-import { callRpc } from "@/lib/rpc";
+-import { money } from "@/lib/format";
+-import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
++import { createFileRoute } from "@tanstack/react-router";
++import { ShopPage } from "@/components/shop/ShopPage";
+ 
++// Alias of "/" so existing links keep working. The shop lives in one place only.
+ export const Route = createFileRoute("/place_order")({
+   head: () => ({
+     meta: [
+-      { title: "SchoolOrder — Order drinks from your school shop" },
++      { title: "Order now — SchoolOrder" },
+       {
+         name: "description",
+         content:
+           "Browse today's drinks, pay by cash or DuitNow QR, and get a pickup code instantly. No account needed.",
+       },
+-      { property: "og:title", content: "SchoolOrder — Order drinks from your school shop" },
++      { property: "og:title", content: "Order now — SchoolOrder" },
+       {
+         property: "og:description",
+         content: "Browse drinks, pay by cash or DuitNow, and collect with a pickup code.",
+       },
++      { property: "og:type", content: "website" },
++      { name: "twitter:card", content: "summary_large_image" },
+     ],
+   }),
+-  component: Shop,
++  component: ShopPage,
+ });
+-
+-type Variant = {
+-  id: string;
+-  name: string;
+-  price: number;
+-  sort_order: number;
+-};
+-type Product = {
+-  id: string;
+-  name: string;
+-  description: string | null;
+-  image_url: string | null;
+-  stock: number;
+-  sort_order: number;
+-  product_variants: Variant[];
+-};
+-type CartLine = {
+-  productId: string;
+-  variantId: string;
+-  productName: string;
+-  variantName: string;
+-  price: number;
+-  stock: number;
+-  qty: number;
+-};
+-
+-function useShopData() {
+-  return useQuery({
+-    queryKey: ["shop"],
+-    queryFn: async () => {
+-      const { data: org, error: orgErr } = await supabase
+-        .from("organizations")
+-        .select("id, name, currency, is_open")
+-        .order("created_at", { ascending: true })
+-        .limit(1)
+-        .maybeSingle();
+-      if (orgErr) throw orgErr;
+-      if (!org) return { org: null, products: [] as Product[] };
+-
+-      const { data: products, error: prodErr } = await supabase
+-        .from("products")
+-        .select(
+-          "id, name, description, image_url, stock, sort_order, product_variants(id, name, price, sort_order, is_active)",
+-        )
+-        .eq("organization_id", org.id)
+-        .eq("is_active", true)
+-        .order("sort_order", { ascending: true });
+-      if (prodErr) throw prodErr;
+-
+-      const cleaned: Product[] = (products ?? []).map((p) => ({
+-        id: p.id,
+-        name: p.name,
+-        description: p.description,
+-        image_url: p.image_url,
+-        stock: Number(p.stock),
+-        sort_order: p.sort_order,
+-        product_variants: (p.product_variants ?? [])
+-          .filter((v: { is_active: boolean }) => v.is_active)
+-          .map((v: Variant) => ({ ...v, price: Number(v.price) }))
+-          .sort((a: Variant, b: Variant) => a.sort_order - b.sort_order),
+-      }));
+-      return { org, products: cleaned.filter((p) => p.product_variants.length > 0) };
+-    },
+-  });
+-}
+-
+-function ProductImage({ path, alt }: { path: string | null; alt: string }) {
+-  const { data: url } = useSignedUrl(SHOP_BUCKET, path);
+-  if (!url) {
+-    return (
+-      <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
+-        <ShoppingBag className="h-6 w-6" aria-hidden />
+-      </div>
+-    );
+-  }
+-  return (
+-    <img
+-      src={url}
+-      alt={alt}
+-      loading="lazy"
+-      className="h-32 w-full rounded-lg object-cover"
+-    />
+-  );
+-}
+-
+-function Shop() {
+-  const { t } = useI18n();
+-  const navigate = useNavigate();
+-  const { data, isLoading, isError, refetch } = useShopData();
+-  const [search, setSearch] = useState("");
+-  const [cart, setCart] = useState<Record<string, CartLine>>({});
+-  const [open, setOpen] = useState(false);
+-
+-  const currency = data?.org?.currency ?? "RM";
+-  const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
+-  const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+-  const count = lines.reduce((sum, l) => sum + l.qty, 0);
+-
+-  const filtered = useMemo(() => {
+-    const q = search.trim().toLowerCase();
+-    if (!q) return data?.products ?? [];
+-    return (data?.products ?? []).filter(
+-      (p) =>
+-        p.name.toLowerCase().includes(q) ||
+-        (p.description ?? "").toLowerCase().includes(q) ||
+-        p.product_variants.some((v) => v.name.toLowerCase().includes(q)),
+-    );
+-  }, [data, search]);
+-
+-  function addToCart(product: Product, variant: Variant) {
+-    setCart((prev) => {
+-      const current = prev[variant.id];
+-      const usedByOtherVariants = Object.values(prev)
+-        .filter((line) => line.productId === product.id && line.variantId !== variant.id)
+-        .reduce((sum, line) => sum + line.qty, 0);
+-      const qty = Math.min((current?.qty ?? 0) + 1, Math.max(0, product.stock - usedByOtherVariants));
+-      if (qty === 0) return prev;
+-      return {
+-        ...prev,
+-        [variant.id]: {
+-          productId: product.id,
+-          variantId: variant.id,
+-          productName: product.name,
+-          variantName: variant.name,
+-          price: variant.price,
+-          stock: product.stock,
+-          qty,
+-        },
+-      };
+-    });
+-  }
+-
+-  function setQty(variantId: string, qty: number) {
+-    setCart((prev) => {
+-      const line = prev[variantId];
+-      if (!line) return prev;
+-      const usedByOtherVariants = Object.values(prev)
+-        .filter((candidate) => candidate.productId === line.productId && candidate.variantId !== variantId)
+-        .reduce((sum, candidate) => sum + candidate.qty, 0);
+-      const next = Math.max(0, Math.min(qty, line.stock - usedByOtherVariants));
+-      if (next === 0) {
+-        const { [variantId]: _removed, ...rest } = prev;
+-        return rest;
+-      }
+-      return { ...prev, [variantId]: { ...line, qty: next } };
+-    });
+-  }
+-
+-  return (
+-    <div className="min-h-screen bg-background pb-24">
+-      <SiteHeader subtitle={data?.org?.name} />
+-
+-      <main className="mx-auto max-w-6xl px-4 py-6">
+-        <div className="mb-6">
+-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
+-          {data?.org && !data.org.is_open ? (
+-            <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
+-              {t("shop.closed")}
+-            </p>
+-          ) : null}
+-        </div>
+-
+-        <div className="relative mb-5 max-w-sm">
+-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+-          <Input
+-            value={search}
+-            onChange={(e) => setSearch(e.target.value)}
+-            placeholder={t("shop.searchPlaceholder")}
+-            aria-label={t("common.search")}
+-            className="h-11 pl-9"
+-          />
+-        </div>
+-
+-        {isLoading ? <LoadingState /> : null}
+-        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
+-        {!isLoading && !isError && filtered.length === 0 ? (
+-          <EmptyState label={t("shop.empty")} />
+-        ) : null}
+-
+-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+-          {filtered.map((product) => (
+-            <Card key={product.id} className="overflow-hidden">
+-              <CardContent className="flex flex-col gap-3 p-4">
+-                <ProductImage path={product.image_url} alt={product.name} />
+-                <div>
+-                  <h2 className="text-base font-semibold leading-tight">{product.name}</h2>
+-                  {product.description ? (
+-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+-                      {product.description}
+-                    </p>
+-                  ) : null}
+-                  <p className="mt-1 text-xs text-muted-foreground">
+-                    {product.stock > 0 ? `${product.stock} ${t("shop.left")}` : t("shop.soldOut")}
+-                  </p>
+-                </div>
+-                <ul className="flex flex-col gap-2">
+-                  {product.product_variants.map((variant) => {
+-                    const inCart = cart[variant.id]?.qty ?? 0;
+-                    const productQtyInCart = Object.values(cart)
+-                      .filter((line) => line.productId === product.id)
+-                      .reduce((sum, line) => sum + line.qty, 0);
+-                    const soldOut = product.stock <= 0;
+-                    return (
+-                      <li
+-                        key={variant.id}
+-                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
+-                      >
+-                        <div className="min-w-0">
+-                          <p className="truncate text-sm font-medium">{variant.name}</p>
+-                          <p className="text-xs text-muted-foreground">{money(variant.price, currency)}</p>
+-                        </div>
+-                        {soldOut ? (
+-                          <Badge variant="secondary">{t("shop.soldOut")}</Badge>
+-                        ) : inCart > 0 ? (
+-                          <div className="flex items-center gap-1">
+-                            <Button
+-                              size="icon"
+-                              variant="outline"
+-                              className="h-9 w-9"
+-                              aria-label="-"
+-                              onClick={() => setQty(variant.id, inCart - 1)}
+-                            >
+-                              <Minus className="h-4 w-4" />
+-                            </Button>
+-                            <span className="w-6 text-center text-sm font-semibold">{inCart}</span>
+-                            <Button
+-                              size="icon"
+-                              variant="outline"
+-                              className="h-9 w-9"
+-                              aria-label="+"
+-                              disabled={productQtyInCart >= product.stock}
+-                              onClick={() => setQty(variant.id, inCart + 1)}
+-                            >
+-                              <Plus className="h-4 w-4" />
+-                            </Button>
+-                          </div>
+-                        ) : (
+-                          <Button
+-                            size="sm"
+-                            className="h-9"
+-                            disabled={productQtyInCart >= product.stock}
+-                            onClick={() => addToCart(product, variant)}
+-                          >
+-                            {t("shop.add")}
+-                          </Button>
+-                        )}
+-                      </li>
+-                    );
+-                  })}
+-                </ul>
+-              </CardContent>
+-            </Card>
+-          ))}
+-        </div>
+-      </main>
+-
+-      <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur no-print">
+-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+-          <div className="min-w-0 flex-1">
+-            <p className="text-xs text-muted-foreground">{t("shop.cart")}</p>
+-            <p className="truncate text-sm font-semibold">
+-              {count} · {money(subtotal, currency)}
+-            </p>
+-          </div>
+-          <Sheet open={open} onOpenChange={setOpen}>
+-            <SheetTrigger asChild>
+-              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
+-                {t("shop.checkout")}
+-              </Button>
+-            </SheetTrigger>
+-            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+-              <SheetHeader>
+-                <SheetTitle>{t("shop.checkout")}</SheetTitle>
+-              </SheetHeader>
+-              {data?.org ? (
+-                <CheckoutForm
+-                  orgId={data.org.id}
+-                  currency={currency}
+-                  lines={lines}
+-                  subtotal={subtotal}
+-                  onQty={setQty}
+-                  onDone={(token) => {
+-                    setCart({});
+-                    setOpen(false);
+-                    void navigate({ to: "/order/$token", params: { token } });
+-                  }}
+-                />
+-              ) : null}
+-            </SheetContent>
+-          </Sheet>
+-        </div>
+-      </div>
+-    </div>
+-  );
+-}
+-
+-function CheckoutForm({
+-  orgId,
+-  currency,
+-  lines,
+-  subtotal,
+-  onQty,
+-  onDone,
+-}: {
+-  orgId: string;
+-  currency: string;
+-  lines: CartLine[];
+-  subtotal: number;
+-  onQty: (variantId: string, qty: number) => void;
+-  onDone: (token: string) => void;
+-}) {
+-  const { t } = useI18n();
+-  const [name, setName] = useState("");
+-  const [age, setAge] = useState("");
+-  const [klass, setKlass] = useState("");
+-  const [promo, setPromo] = useState("");
+-  const [method, setMethod] = useState<"cash" | "duitnow" | null>(null);
+-  const [busy, setBusy] = useState(false);
+-  const [error, setError] = useState<string | null>(null);
+-
+-  async function submit(e: React.FormEvent) {
+-    e.preventDefault();
+-    setError(null);
+-    if (name.trim().length < 2) return setError(t("err.INVALID_NAME"));
+-    if (!method) return setError(t("shop.selectPayment"));
+-    if (lines.length === 0) return setError(t("err.EMPTY_CART"));
+-
+-    setBusy(true);
+-    try {
+-      const data = await callRpc<{ access_token?: string }>("create_public_order", {
+-        p_org: orgId,
+-        p_buyer_name: name.trim(),
+-        p_buyer_age: age ? Number(age) : null,
+-        p_buyer_class: klass.trim() || null,
+-        p_items: lines.map((l) => ({ variant_id: l.variantId, quantity: l.qty })),
+-        p_payment_method: method,
+-        p_promo_code: promo.trim() || null,
+-      });
+-      const token = data?.access_token;
+-      if (!token) throw new Error("ORDER_NOT_FOUND");
+-      onDone(token);
+-    } catch (err) {
+-      setError(translateError(t, err instanceof Error ? err.message : null));
+-    } finally {
+-      setBusy(false);
+-    }
+-  }
+-
+-  if (lines.length === 0) {
+-    return <p className="py-8 text-sm text-muted-foreground">{t("shop.cartEmpty")}</p>;
+-  }
+-
+-  return (
+-    <form className="flex flex-col gap-5 py-4" onSubmit={submit} noValidate>
+-      <ul className="flex flex-col gap-2">
+-        {lines.map((l) => (
+-          <li key={l.variantId} className="flex items-center justify-between gap-2 text-sm">
+-            <span className="min-w-0 truncate">
+-              {l.productName} · {l.variantName}
+-            </span>
+-            <span className="flex items-center gap-1">
+-              <Button
+-                type="button"
+-                size="icon"
+-                variant="outline"
+-                className="h-8 w-8"
+-                aria-label="-"
+-                onClick={() => onQty(l.variantId, l.qty - 1)}
+-              >
+-                <Minus className="h-3 w-3" />
+-              </Button>
+-              <span className="w-5 text-center">{l.qty}</span>
+-              <Button
+-                type="button"
+-                size="icon"
+-                variant="outline"
+-                className="h-8 w-8"
+-                aria-label="+"
+-                disabled={l.qty >= l.stock}
+-                onClick={() => onQty(l.variantId, l.qty + 1)}
+-              >
+-                <Plus className="h-3 w-3" />
+-              </Button>
+-              <span className="w-16 text-right font-medium">{money(l.price * l.qty, currency)}</span>
+-            </span>
+-          </li>
+-        ))}
+-      </ul>
+-
+-      <div className="flex justify-between border-t pt-3 text-sm font-semibold">
+-        <span>{t("common.subtotal")}</span>
+-        <span>{money(subtotal, currency)}</span>
+-      </div>
+-
+-      <fieldset className="grid gap-3">
+-        <legend className="mb-1 text-sm font-semibold">{t("shop.yourDetails")}</legend>
+-        <div className="grid gap-2">
+-          <Label htmlFor="buyer-name">{t("shop.buyerName")}</Label>
+-          <Input id="buyer-name" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+-        </div>
+-        <div className="grid grid-cols-2 gap-2">
+-          <div className="grid gap-2">
+-            <Label htmlFor="buyer-age">{t("shop.buyerAge")}</Label>
+-            <Input
+-              id="buyer-age"
+-              type="number"
+-              min={5}
+-              max={100}
+-              inputMode="numeric"
+-              value={age}
+-              onChange={(e) => setAge(e.target.value)}
+-              className="h-11"
+-            />
+-          </div>
+-          <div className="grid gap-2">
+-            <Label htmlFor="buyer-class">{t("shop.buyerClass")}</Label>
+-            <Input id="buyer-class" value={klass} onChange={(e) => setKlass(e.target.value)} className="h-11" />
+-          </div>
+-        </div>
+-      </fieldset>
+-
+-      <fieldset className="grid gap-2">
+-        <legend className="mb-1 text-sm font-semibold">{t("shop.payment")}</legend>
+-        <div className="grid grid-cols-2 gap-2">
+-          <Button
+-            type="button"
+-            variant={method === "cash" ? "default" : "outline"}
+-            className="h-11"
+-            onClick={() => setMethod("cash")}
+-          >
+-            {t("shop.cash")}
+-          </Button>
+-          <Button
+-            type="button"
+-            variant={method === "duitnow" ? "default" : "outline"}
+-            className="h-11"
+-            onClick={() => setMethod("duitnow")}
+-          >
+-            {t("shop.duitnow")}
+-          </Button>
+-        </div>
+-        {method ? (
+-          <p className="text-xs text-muted-foreground">
+-            {method === "cash" ? t("shop.cashNote") : t("shop.duitnowNote")}
+-          </p>
+-        ) : null}
+-      </fieldset>
+-
+-      <div className="grid gap-2">
+-        <Label htmlFor="promo">{t("shop.promo")}</Label>
+-        <Input
+-          id="promo"
+-          value={promo}
+-          onChange={(e) => setPromo(e.target.value.toUpperCase())}
+-          placeholder={t("shop.promoPlaceholder")}
+-          className="h-11"
+-        />
+-      </div>
+-
+-      {error ? (
+-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+-          {error}
+-        </p>
+-      ) : null}
+-
+-      <Button type="submit" className="h-12" disabled={busy}>
+-        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+-        {busy ? t("shop.placing") : t("shop.placeOrder")}
+-      </Button>
+-    </form>
+-  );
+-}
+diff -ruN -x .git -x node_modules -x .env pristine/supabase/migrations/20260910170000_fix_checkout_and_org_scope.sql work/supabase/migrations/20260910170000_fix_checkout_and_org_scope.sql
+--- /dev/null
++++ b/supabase/migrations/20260910170000_fix_checkout_and_org_scope.sql
+@@ -0,0 +1,179 @@
++-- Fix #1: create_public_order read pv.is_active but never selected it, so every
++--         checkout died with: record "v_variant" has no field "is_active".
++-- Fix #5: buyer age / name / class are now validated on the server, not only in HTML.
++-- Fix #3: get_order_by_token now returns organization_id, so the client can scope
++--         the DuitNow QR and the payment-proof folder to the order's own shop.
++
++create or replace function public.create_public_order(
++  p_org uuid,
++  p_buyer_name text,
++  p_buyer_age integer,
++  p_buyer_class text,
++  p_items jsonb,
++  p_payment_method public.payment_method,
++  p_promo_code text default null
++)
++returns jsonb
++language plpgsql
++security definer
++set search_path = public
++as $$
++declare
++  v_item jsonb;
++  v_variant record;
++  v_qty int;
++  v_subtotal numeric(10,2) := 0;
++  v_cost numeric(10,2) := 0;
++  v_discount numeric(10,2) := 0;
++  v_promo record;
++  v_order_id uuid;
++  v_number text;
++  v_pickup text;
++  v_token text;
++  v_open boolean;
++  v_count int := 0;
++  v_class text;
++begin
++  if p_buyer_name is null or length(btrim(p_buyer_name)) < 2
++     or length(btrim(p_buyer_name)) > 80 then
++    raise exception 'INVALID_NAME';
++  end if;
++  if p_buyer_age is not null and (p_buyer_age < 5 or p_buyer_age > 100) then
++    raise exception 'INVALID_AGE';
++  end if;
++  v_class := nullif(btrim(coalesce(p_buyer_class,'')),'');
++  if v_class is not null and length(v_class) > 20 then
++    raise exception 'INVALID_CLASS';
++  end if;
++  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
++    raise exception 'EMPTY_CART';
++  end if;
++  select is_open into v_open from public.organizations where id = p_org;
++  if v_open is null then raise exception 'ORG_NOT_FOUND'; end if;
++  if not v_open then raise exception 'SHOP_CLOSED'; end if;
++
++  v_order_id := gen_random_uuid();
++  v_pickup := public.gen_code(6);
++  v_token := replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
++  v_number := 'ORD-' || to_char(now() at time zone 'utc', 'YYMMDD') || '-' || public.gen_code(5);
++
++  insert into public.orders (id, organization_id, order_number, pickup_code, access_token,
++    buyer_name, buyer_age, buyer_class, payment_method, payment_status, status, promo_code)
++  values (v_order_id, p_org, v_number, v_pickup, v_token,
++    btrim(p_buyer_name), p_buyer_age, v_class, p_payment_method,
++    'pending_payment', 'pending', nullif(btrim(coalesce(p_promo_code,'')),''));
++
++  for v_item in select * from jsonb_array_elements(p_items) loop
++    v_qty := coalesce((v_item->>'quantity')::int, 0);
++    if v_qty <= 0 or v_qty > 500 then raise exception 'INVALID_QUANTITY'; end if;
++    v_count := v_count + v_qty;
++
++    -- Lock the product row, not the customization row. All variants share this stock.
++    select pv.id as variant_id, pv.name as variant_name, pv.price, pv.cost_price,
++           pv.is_active as variant_active,
++           pv.product_id, p.name as product_name, p.is_active as product_active,
++           p.stock as product_stock
++      into v_variant
++    from public.product_variants pv
++    join public.products p on p.id = pv.product_id
++    where pv.id = (v_item->>'variant_id')::uuid
++      and pv.organization_id = p_org
++    for update of p;
++
++    if not found then raise exception 'PRODUCT_NOT_FOUND'; end if;
++    if not v_variant.variant_active or not v_variant.product_active then raise exception 'PRODUCT_INACTIVE'; end if;
++    if v_variant.product_stock < v_qty then
++      raise exception 'OUT_OF_STOCK:%', v_variant.product_name;
++    end if;
++
++    update public.products set stock = stock - v_qty where id = v_variant.product_id;
++
++    insert into public.inventory_movements (organization_id, product_id, variant_id, delta, reason, note)
++    values (p_org, v_variant.product_id, v_variant.variant_id, -v_qty, 'order_deduct', v_number);
++
++    insert into public.order_items (order_id, organization_id, variant_id, product_name, variant_name,
++      unit_price, unit_cost, quantity, line_total)
++    values (v_order_id, p_org, v_variant.variant_id, v_variant.product_name, v_variant.variant_name,
++      v_variant.price, v_variant.cost_price, v_qty, round(v_variant.price * v_qty, 2));
++
++    v_subtotal := v_subtotal + round(v_variant.price * v_qty, 2);
++    v_cost := v_cost + round(v_variant.cost_price * v_qty, 2);
++  end loop;
++
++  if v_count > 1000 then raise exception 'INVALID_QUANTITY'; end if;
++
++  if nullif(btrim(coalesce(p_promo_code,'')),'') is not null then
++    select * into v_promo from public.promo_codes
++    where organization_id = p_org and upper(code) = upper(btrim(p_promo_code)) and is_active
++    for update;
++
++    if not found then raise exception 'PROMO_INVALID'; end if;
++    if v_promo.starts_at is not null and now() < v_promo.starts_at then raise exception 'PROMO_NOT_STARTED'; end if;
++    if v_promo.ends_at is not null and now() > v_promo.ends_at then raise exception 'PROMO_EXPIRED'; end if;
++    if v_promo.usage_limit is not null and v_promo.used_count >= v_promo.usage_limit then raise exception 'PROMO_USED_UP'; end if;
++    if v_subtotal < v_promo.minimum_order_amount then raise exception 'PROMO_MIN_AMOUNT'; end if;
++
++    if v_promo.type = 'fixed_amount_off' then
++      v_discount := least(v_promo.value, v_subtotal);
++    elsif v_promo.type = 'percentage_off' then
++      v_discount := round(v_subtotal * v_promo.value / 100.0, 2);
++    else
++      select coalesce(sum(round(oi.unit_price * floor(oi.quantity / 2) * v_promo.value / 100.0, 2)), 0)
++        into v_discount
++      from public.order_items oi
++      join public.product_variants pv on pv.id = oi.variant_id
++      where oi.order_id = v_order_id
++        and (v_promo.product_id is null or pv.product_id = v_promo.product_id);
++    end if;
++
++    if v_promo.max_discount is not null then
++      v_discount := least(v_discount, v_promo.max_discount);
++    end if;
++    v_discount := least(greatest(v_discount, 0), v_subtotal);
++
++    update public.promo_codes set used_count = used_count + 1 where id = v_promo.id;
++    update public.orders set promo_code_id = v_promo.id where id = v_order_id;
++  end if;
++
++  update public.orders
++     set subtotal = v_subtotal,
++         discount = v_discount,
++         total = round(v_subtotal - v_discount, 2),
++         cost_total = v_cost
++   where id = v_order_id;
++
++  return jsonb_build_object(
++    'order_id', v_order_id,
++    'order_number', v_number,
++    'pickup_code', v_pickup,
++    'access_token', v_token,
++    'total', round(v_subtotal - v_discount, 2)
++  );
++end; $$;
++
++grant execute on function public.create_public_order(uuid, text, integer, text, jsonb, public.payment_method, text) to anon, authenticated;
++
++create or replace function public.get_order_by_token(p_token text)
++returns jsonb language plpgsql stable security definer set search_path = public as $$
++declare v_order record; v_org record; v_items jsonb;
++begin
++  if p_token is null or length(p_token) < 20 then raise exception 'ORDER_NOT_FOUND'; end if;
++  select * into v_order from public.orders where access_token = p_token;
++  if not found then raise exception 'ORDER_NOT_FOUND'; end if;
++  select * into v_org from public.organizations where id = v_order.organization_id;
++  select coalesce(jsonb_agg(jsonb_build_object(
++    'product_name', product_name, 'variant_name', variant_name,
++    'unit_price', unit_price, 'quantity', quantity, 'line_total', line_total)), '[]'::jsonb)
++    into v_items from public.order_items where order_id = v_order.id;
++  return jsonb_build_object(
++    'organization_id', v_org.id,
++    'organization_name', v_org.name, 'currency', v_org.currency,
++    'order_number', v_order.order_number, 'pickup_code', v_order.pickup_code,
++    'buyer_name', v_order.buyer_name, 'buyer_class', v_order.buyer_class,
++    'subtotal', v_order.subtotal, 'discount', v_order.discount, 'total', v_order.total,
++    'payment_method', v_order.payment_method, 'payment_status', v_order.payment_status,
++    'status', v_order.status, 'created_at', v_order.created_at,
++    'has_proof', v_order.payment_proof_path is not null,
++    'items', v_items);
++end; $$;
++grant execute on function public.get_order_by_token(text) to anon, authenticated;

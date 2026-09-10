@@ -51,6 +51,7 @@ const dict = {
   "common.edit": { en: "Edit", zh: "编辑", ms: "Sunting" },
   "common.add": { en: "Add", zh: "添加", ms: "Tambah" },
   "common.close": { en: "Close", zh: "关闭", ms: "Tutup" },
+  "common.remove": { en: "Remove", zh: "移除", ms: "Buang" },
   "common.search": { en: "Search", zh: "搜索", ms: "Cari" },
   "common.none": { en: "None", zh: "无", ms: "Tiada" },
   "common.error": {
@@ -121,6 +122,16 @@ const dict = {
     en: "Please choose a payment method.",
     zh: "请选择付款方式。",
     ms: "Sila pilih kaedah pembayaran.",
+  },
+  "shop.proofRequired": {
+    en: "Please attach your DuitNow payment receipt before placing the order.",
+    zh: "请先上传 DuitNow 付款凭证，再提交订单。",
+    ms: "Sila lampirkan resit pembayaran DuitNow sebelum menghantar pesanan.",
+  },
+  "shop.proofHint": {
+    en: "Tap to attach a screenshot or photo (image, max 5 MB)",
+    zh: "点按上传截图或照片（图片，最大 5MB）",
+    ms: "Ketik untuk lampirkan tangkapan skrin atau foto (imej, maks 5 MB)",
   },
   "shop.promo": { en: "Promo code", zh: "优惠码", ms: "Kod promosi" },
   "shop.promoPlaceholder": { en: "Optional", zh: "选填", ms: "Pilihan" },
@@ -336,6 +347,16 @@ const dict = {
   },
   "err.EMPTY_CART": { en: "Your cart is empty.", zh: "购物车是空的。", ms: "Troli anda kosong." },
   "err.INVALID_NAME": { en: "Please enter your name.", zh: "请输入姓名。", ms: "Sila masukkan nama anda." },
+  "err.INVALID_AGE": {
+    en: "Please enter an age between 5 and 100.",
+    zh: "请输入 5 至 100 之间的年龄。",
+    ms: "Sila masukkan umur antara 5 hingga 100.",
+  },
+  "err.INVALID_CLASS": {
+    en: "Class is too long.",
+    zh: "班级名称过长。",
+    ms: "Nama kelas terlalu panjang.",
+  },
   "err.PRODUCT_INACTIVE": {
     en: "A product is no longer on sale.",
     zh: "某个产品已下架。",
