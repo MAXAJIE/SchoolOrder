@@ -15,9 +15,8 @@ import { useI18n, translateError } from "@/lib/i18n";
 import { callRpc } from "@/lib/rpc";
 import { money } from "@/lib/format";
 import {
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
   PROOF_BUCKET,
+  validateImageFile,
   SHOP_BUCKET,
   fileExtension,
   useSignedUrl,
@@ -369,13 +368,51 @@ function CheckoutForm({
 
   function pickProof(file: File | undefined) {
     if (!file) return;
-    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
-      setError(t("order.imageOnly"));
+    const problem = validateImageFile(file);
+    if (problem) {
+      setError(problem === "size" ? t("shop.imageTooLarge") : t("order.imageOnly"));
       if (proofRef.current) proofRef.current.value = "";
       return;
     }
     setError(null);
     setProof(file);
+  }
+
+  /**
+   * The cart holds a stock snapshot from page load, so another buyer can empty
+   * a product while this form is open. Re-read stock right before ordering,
+   * trim the cart to what is really available and tell the buyer, instead of
+   * letting the order fail at the very last step.
+   */
+  async function stockConflict(): Promise<string | null> {
+    const productIds = Array.from(new Set(lines.map((l) => l.productId)));
+    if (productIds.length === 0) return null;
+    const { data, error: stockErr } = await supabase
+      .from("products")
+      .select("id, name, stock, is_active")
+      .in("id", productIds);
+    if (stockErr) return null; // Let the server stay the source of truth.
+
+    const fresh = new Map((data ?? []).map((p) => [p.id as string, p]));
+    for (const id of productIds) {
+      const row = fresh.get(id);
+      const productLines = lines.filter((l) => l.productId === id);
+      const name = row?.name ?? productLines[0]?.productName ?? "";
+      const available = row && row.is_active !== false ? Math.max(0, Number(row.stock)) : 0;
+      const wanted = productLines.reduce((sum, l) => sum + l.qty, 0);
+      if (wanted <= available) continue;
+
+      let left = available;
+      for (const line of productLines) {
+        const next = Math.min(line.qty, left);
+        left -= next;
+        if (next !== line.qty) onQty(line.variantId, next);
+      }
+      return available === 0
+        ? `${t("err.OUT_OF_STOCK")} ${name}`
+        : `${t("shop.stockChanged")} ${name} (${available})`;
+    }
+    return null;
   }
 
   async function submit(e: React.FormEvent) {
@@ -388,6 +425,11 @@ function CheckoutForm({
 
     setBusy(true);
     try {
+      const conflict = await stockConflict();
+      if (conflict) {
+        setError(conflict);
+        return;
+      }
       const data = await callRpc<{ access_token?: string }>("create_public_order", {
         p_org: orgId,
         p_buyer_name: name.trim(),

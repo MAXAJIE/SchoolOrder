@@ -13,9 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { useI18n, translateError, type TKey } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
 import {
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
   PROOF_BUCKET,
+  validateImageFile,
   SHOP_BUCKET,
   fileExtension,
   useSignedUrl,
@@ -98,12 +97,9 @@ function OrderPage() {
   const { data: qrUrl } = useSignedUrl(SHOP_BUCKET, qrQuery.data?.image_url ?? null);
 
   async function uploadProof(file: File) {
-    if (!IMAGE_TYPES.includes(file.type)) {
-      toast.error(t("order.imageOnly"));
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      toast.error(t("order.imageOnly"));
+    const problem = validateImageFile(file);
+    if (problem) {
+      toast.error(problem === "size" ? t("shop.imageTooLarge") : t("order.imageOnly"));
       return;
     }
     setUploading(true);

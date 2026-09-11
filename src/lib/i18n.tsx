@@ -128,6 +128,16 @@ const dict = {
     zh: "请先上传 DuitNow 付款凭证，再提交订单。",
     ms: "Sila lampirkan resit pembayaran DuitNow sebelum menghantar pesanan.",
   },
+  "shop.imageTooLarge": {
+    en: "That image is too large. Please attach an image under 5 MB.",
+    zh: "图片太大，请上传小于 5MB 的图片。",
+    ms: "Imej terlalu besar. Sila lampirkan imej bawah 5 MB.",
+  },
+  "shop.stockChanged": {
+    en: "Stock just changed while you were ordering. We updated your cart:",
+    zh: "下单期间库存已变动，购物车已更新：",
+    ms: "Stok berubah semasa anda memesan. Troli anda dikemas kini:",
+  },
   "shop.proofHint": {
     en: "Tap to attach a screenshot or photo (image, max 5 MB)",
     zh: "点按上传截图或照片（图片，最大 5MB）",
