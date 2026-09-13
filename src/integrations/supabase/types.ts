@@ -343,6 +343,8 @@ export type Database = {
       }
       organizations: {
         Row: {
+          button_color: string
+          public_theme: string
           created_at: string
           currency: string
           id: string
@@ -351,6 +353,8 @@ export type Database = {
           owner_id: string
         }
         Insert: {
+          button_color?: string
+          public_theme?: string
           created_at?: string
           currency?: string
           id?: string
@@ -359,6 +363,8 @@ export type Database = {
           owner_id: string
         }
         Update: {
+          button_color?: string
+          public_theme?: string
           created_at?: string
           currency?: string
           id?: string
@@ -785,6 +791,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      update_shop_appearance: {
+        Args: { p_button_color: string; p_org: string; p_theme: string }
+        Returns: undefined
+      }
       adjust_stock: {
         Args: {
           p_delta: number

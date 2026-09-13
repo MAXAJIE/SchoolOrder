@@ -17,6 +17,7 @@ import { Promos } from "@/components/console/Promos";
 import { Dealers } from "@/components/console/Dealers";
 import { Requests } from "@/components/console/Requests";
 import { Settings } from "@/components/console/Settings";
+import { AppearanceSettings } from "@/components/console/AppearanceSettings";
 import { useAuth } from "@/lib/auth";
 import { useMembership } from "@/lib/org";
 import { useI18n, translateError, type TKey } from "@/lib/i18n";
@@ -78,7 +79,10 @@ export function ConsoleApp() {
         { id: "dealers", label: t("nav.dealers") },
         { id: "settings", label: t("nav.settings") },
       ]
-    : [{ id: "dashboard", label: t("nav.requests") }];
+    : [
+        { id: "dashboard", label: t("nav.requests") },
+        { id: "settings", label: t("nav.appearance") },
+      ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -91,8 +95,7 @@ export function ConsoleApp() {
           </Badge>
         </div>
 
-        {isOwner ? (
-          <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
+        <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
             {tabs.map((tb) => (
               <Button
                 key={tb.id}
@@ -105,9 +108,8 @@ export function ConsoleApp() {
               </Button>
             ))}
           </nav>
-        ) : null}
 
-        {!isOwner ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
+        {!isOwner && tab === "dashboard" ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
         {isOwner && tab === "dashboard" ? (
           <Dashboard orgId={organizationId} currency={organization.currency} />
         ) : null}
@@ -129,6 +131,15 @@ export function ConsoleApp() {
             name={organization.name}
             currency={organization.currency}
             isOpen={organization.is_open}
+            publicTheme={organization.public_theme}
+            buttonColor={organization.button_color}
+          />
+        ) : null}
+        {!isOwner && tab === "settings" ? (
+          <AppearanceSettings
+            orgId={organizationId}
+            initialTheme={organization.public_theme}
+            initialButtonColor={organization.button_color}
           />
         ) : null}
       </main>

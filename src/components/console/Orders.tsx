@@ -23,6 +23,7 @@ import { useI18n, translateError, type TKey } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
 import { callRpc } from "@/lib/rpc";
 import { PROOF_BUCKET, signedUrl } from "@/lib/storage";
+import { OrderStatusBadge, PaymentStatusBadge } from "@/components/OrderStatus";
 
 type Order = {
   id: string;
@@ -186,12 +187,8 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{o.pickup_code}</Badge>
-                  <Badge variant={o.status === "cancelled" ? "destructive" : "secondary"}>
-                    {t(`status.${o.status}` as TKey)}
-                  </Badge>
-                  <Badge variant={o.payment_status === "paid" ? "default" : "outline"}>
-                    {t(`pay.${o.payment_status}` as TKey)}
-                  </Badge>
+                  <OrderStatusBadge status={o.status} />
+                  {o.status !== "cancelled" ? <PaymentStatusBadge status={o.payment_status} /> : null}
                 </div>
               </div>
 

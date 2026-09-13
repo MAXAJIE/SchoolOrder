@@ -13,6 +13,8 @@ export type Membership = {
     currency: string;
     is_open: boolean;
     owner_id: string;
+    public_theme: string;
+    button_color: string;
   };
 } | null;
 
@@ -36,7 +38,7 @@ export function useMembership() {
 
       const { data: org, error: orgErr } = await supabase
         .from("organizations")
-        .select("id, name, currency, is_open, owner_id")
+        .select("id, name, currency, is_open, owner_id, public_theme, button_color")
         .eq("id", member.organization_id)
         .maybeSingle();
       if (orgErr) throw orgErr;

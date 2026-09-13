@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n, translateError } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { ImageCropper } from "@/components/ImageCropper";
+import { AppearanceSettings } from "@/components/console/AppearanceSettings";
 import {
   IMAGE_TYPES,
   MAX_IMAGE_BYTES,
@@ -24,11 +25,15 @@ export function Settings({
   name,
   currency,
   isOpen,
+  publicTheme,
+  buttonColor,
 }: {
   orgId: string;
   name: string;
   currency: string;
   isOpen: boolean;
+  publicTheme?: string | null;
+  buttonColor?: string | null;
 }) {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -172,6 +177,12 @@ export function Settings({
           setCropFile(null);
           void uploadQr(cropped);
         }}
+      />
+
+      <AppearanceSettings
+        orgId={orgId}
+        initialTheme={publicTheme}
+        initialButtonColor={buttonColor}
       />
 
       <Card className="lg:col-span-2">

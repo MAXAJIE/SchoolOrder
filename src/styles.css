@@ -16,7 +16,8 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -78,6 +79,14 @@
   --success-foreground: oklch(0.99 0.005 150);
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.24 0.05 75);
+  --status-pending-bg: oklch(0.94 0.05 85);
+  --status-pending-fg: oklch(0.36 0.1 75);
+  --status-confirmed-bg: oklch(0.93 0.05 225);
+  --status-confirmed-fg: oklch(0.35 0.11 235);
+  --status-completed-bg: oklch(0.93 0.06 155);
+  --status-completed-fg: oklch(0.34 0.11 155);
+  --status-cancelled-bg: oklch(0.94 0.05 25);
+  --status-cancelled-fg: oklch(0.4 0.14 25);
   --border: oklch(0.9 0.01 165);
   --input: oklch(0.9 0.01 165);
   --ring: oklch(0.58 0.13 172);
@@ -117,6 +126,14 @@
   --success-foreground: oklch(0.18 0.03 150);
   --warning: oklch(0.8 0.14 75);
   --warning-foreground: oklch(0.2 0.04 75);
+  --status-pending-bg: oklch(0.32 0.06 75);
+  --status-pending-fg: oklch(0.88 0.11 85);
+  --status-confirmed-bg: oklch(0.3 0.06 230);
+  --status-confirmed-fg: oklch(0.86 0.09 220);
+  --status-completed-bg: oklch(0.3 0.06 155);
+  --status-completed-fg: oklch(0.86 0.1 155);
+  --status-cancelled-bg: oklch(0.3 0.06 25);
+  --status-cancelled-fg: oklch(0.86 0.1 25);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.72 0.13 172);
@@ -172,3 +189,35 @@
     color: #000;
   }
 }
+
+@utility font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0;
+}
+
+@utility shop-button {
+  background-color: var(--shop-button, var(--color-primary));
+  color: var(--shop-button-foreground, var(--color-primary-foreground));
+  &:hover { filter: brightness(0.92); transform: translateY(-1px); }
+  &:active { transform: scale(0.985); }
+}
+
+@utility status-pending { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: color-mix(in oklab, var(--status-pending-fg) 20%, transparent); }
+@utility status-confirmed { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: color-mix(in oklab, var(--status-confirmed-fg) 20%, transparent); }
+@utility status-completed { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: color-mix(in oklab, var(--status-completed-fg) 20%, transparent); }
+@utility status-cancelled { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: color-mix(in oklab, var(--status-cancelled-fg) 20%, transparent); }
+@utility payment-pending_payment { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: transparent; }
+@utility payment-proof_uploaded { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: transparent; }
+@utility payment-paid { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: transparent; }
+@utility payment-rejected { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: transparent; }
+@utility status-banner { display: flex; flex-direction: column; gap: 0.75rem; border: 1px solid currentColor; padding: 1.25rem; }
+@utility status-banner-icon { display: grid; height: 3rem; width: 3rem; place-items: center; border-radius: 9999px; background: color-mix(in oklab, currentColor 12%, transparent); font-size: 1.5rem; }
+@utility theme-choice { display: flex; min-width: 0; flex-direction: column; gap: 0.5rem; border: 1px solid var(--color-border); padding: 0.5rem; text-align: left; transition: border-color 150ms, box-shadow 150ms; &:hover { border-color: var(--color-primary); } }
+@utility theme-choice-active { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 24%, transparent); }
+@utility theme-choice-swatch { height: 2.75rem; width: 100%; background: var(--theme-preview); }
+.theme-choice-ocean { --theme-preview: linear-gradient(90deg, #0c2340 0 50%, #2d8a9e 50%); }
+.theme-choice-mint { --theme-preview: linear-gradient(90deg, #17362d 0 50%, #0b7a5a 50%); }
+.theme-choice-coral { --theme-preview: linear-gradient(90deg, #252525 0 50%, #e85d3a 50%); }
+.shop-theme-ocean { --background: oklch(0.98 0.01 210); --foreground: oklch(0.24 0.04 245); --accent: oklch(0.93 0.035 205); }
+.shop-theme-mint { --background: oklch(0.985 0.012 160); --foreground: oklch(0.25 0.035 165); --accent: oklch(0.93 0.04 160); }
+.shop-theme-coral { --background: oklch(0.985 0.012 45); --foreground: oklch(0.23 0.02 35); --accent: oklch(0.94 0.045 45); }

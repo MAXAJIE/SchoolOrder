@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Copy, Printer } from "lucide-react";
+import { Copy, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/SiteHeader";
 import { LoadingState, ErrorState } from "@/components/States";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useI18n, type TKey } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
 import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
+import { OrderStatusBanner } from "@/components/OrderStatus";
 
 export const Route = createFileRoute("/order/$token")({
   head: () => ({
@@ -90,18 +90,19 @@ function OrderPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader subtitle={order?.organization_name} />
-      <main className="mx-auto max-w-2xl px-4 py-6">
+      <main className="mx-auto max-w-5xl px-4 py-6">
         {orderQuery.isLoading ? <LoadingState /> : null}
         {orderQuery.isError ? <ErrorState message={t("order.notFound")} /> : null}
 
         {order ? (
-          <div className="flex flex-col gap-4">
+          <div className="grid items-start gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="grid gap-4 lg:sticky lg:top-6">
+              <OrderStatusBanner status={order.status} paymentStatus={order.payment_status} />
             <Card>
               <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
-                <CheckCircle2 className="h-8 w-8 text-primary" aria-hidden />
-                <h1 className="text-lg font-semibold">{t("order.title")}</h1>
+                <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
                 <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
-                <p className="text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
+                <p className="font-display text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
                 <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
                 <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
                   <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -123,16 +124,13 @@ function OrderPage() {
                 <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
               </CardContent>
             </Card>
+            </div>
 
+            <div className="grid gap-4">
             <Card>
               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
                 <CardTitle className="text-base">{order.order_number}</CardTitle>
-                <div className="flex gap-2">
-                  <Badge variant="secondary">{t(`status.${order.status}` as TKey)}</Badge>
-                  <Badge variant={order.payment_status === "paid" ? "default" : "outline"}>
-                    {t(`pay.${order.payment_status}` as TKey)}
-                  </Badge>
-                </div>
+
               </CardHeader>
               <CardContent className="flex flex-col gap-3 text-sm">
                 <p className="text-muted-foreground">
@@ -198,6 +196,7 @@ function OrderPage() {
                 {t("shop.cashNote")}
               </p>
             ) : null}
+            </div>
           </div>
         ) : null}
       </main>

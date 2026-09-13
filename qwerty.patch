@@ -1,6 +1,6 @@
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/OrderStatus.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/OrderStatus.tsx
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/OrderStatus.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/OrderStatus.tsx
 --- a/src/components/OrderStatus.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/components/OrderStatus.tsx	2026-09-13 06:15:25.083789422 +0000
++++ b/src/components/OrderStatus.tsx	2026-09-13 06:22:53.814551632 +0000
 @@ -0,0 +1,51 @@
 +import { Badge } from "@/components/ui/badge";
 +import { useI18n, type TKey } from "@/lib/i18n";
@@ -54,10 +54,10 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +  );
 +}
 \ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/console/AppearanceSettings.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/console/AppearanceSettings.tsx
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/AppearanceSettings.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/AppearanceSettings.tsx
 --- a/src/components/console/AppearanceSettings.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/components/console/AppearanceSettings.tsx	2026-09-13 06:15:26.790396339 +0000
-@@ -0,0 +1,106 @@
++++ b/src/components/console/AppearanceSettings.tsx	2026-09-13 06:23:47.203372959 +0000
+@@ -0,0 +1,107 @@
 +import { useState } from "react";
 +import { useMutation, useQueryClient } from "@tanstack/react-query";
 +import { Palette } from "lucide-react";
@@ -123,16 +123,17 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +          <legend className="mb-1 text-sm font-medium">{t("set.publicTheme")}</legend>
 +          <div className="grid grid-cols-3 gap-2">
 +            {SHOP_THEMES.map((option) => (
-+              <button
++              <Button
 +                key={option}
 +                type="button"
++                variant="outline"
 +                aria-pressed={theme === option}
 +                onClick={() => setTheme(option)}
 +                className={cn("theme-choice", `theme-choice-${option}`, theme === option && "theme-choice-active")}
 +              >
 +                <span className="theme-choice-swatch" aria-hidden />
 +                <span>{t(`set.theme.${option}` as TKey)}</span>
-+              </button>
++              </Button>
 +            ))}
 +          </div>
 +        </fieldset>
@@ -165,9 +166,69 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +  );
 +}
 \ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/console/Orders.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/console/Orders.tsx
---- a/src/components/console/Orders.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/components/console/Orders.tsx	2026-09-13 06:15:26.007384997 +0000
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/ConsoleApp.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/ConsoleApp.tsx
+--- a/src/components/console/ConsoleApp.tsx	2026-09-13 06:22:34.530977802 +0000
++++ b/src/components/console/ConsoleApp.tsx	2026-09-13 06:22:55.273375820 +0000
+@@ -17,6 +17,7 @@
+ import { Dealers } from "@/components/console/Dealers";
+ import { Requests } from "@/components/console/Requests";
+ import { Settings } from "@/components/console/Settings";
++import { AppearanceSettings } from "@/components/console/AppearanceSettings";
+ import { useAuth } from "@/lib/auth";
+ import { useMembership } from "@/lib/org";
+ import { useI18n, translateError, type TKey } from "@/lib/i18n";
+@@ -78,7 +79,10 @@
+         { id: "dealers", label: t("nav.dealers") },
+         { id: "settings", label: t("nav.settings") },
+       ]
+-    : [{ id: "dashboard", label: t("nav.requests") }];
++    : [
++        { id: "dashboard", label: t("nav.requests") },
++        { id: "settings", label: t("nav.appearance") },
++      ];
+ 
+   return (
+     <div className="min-h-screen bg-background">
+@@ -91,8 +95,7 @@
+           </Badge>
+         </div>
+ 
+-        {isOwner ? (
+-          <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
++        <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
+             {tabs.map((tb) => (
+               <Button
+                 key={tb.id}
+@@ -105,9 +108,8 @@
+               </Button>
+             ))}
+           </nav>
+-        ) : null}
+ 
+-        {!isOwner ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
++        {!isOwner && tab === "dashboard" ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
+         {isOwner && tab === "dashboard" ? (
+           <Dashboard orgId={organizationId} currency={organization.currency} />
+         ) : null}
+@@ -129,6 +131,15 @@
+             name={organization.name}
+             currency={organization.currency}
+             isOpen={organization.is_open}
++            publicTheme={organization.public_theme}
++            buttonColor={organization.button_color}
++          />
++        ) : null}
++        {!isOwner && tab === "settings" ? (
++          <AppearanceSettings
++            orgId={organizationId}
++            initialTheme={organization.public_theme}
++            initialButtonColor={organization.button_color}
+           />
+         ) : null}
+       </main>
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/Orders.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/Orders.tsx
+--- a/src/components/console/Orders.tsx	2026-09-13 06:22:34.542135215 +0000
++++ b/src/components/console/Orders.tsx	2026-09-13 06:22:55.256855187 +0000
 @@ -23,6 +23,7 @@
  import { money, dateTime } from "@/lib/format";
  import { callRpc } from "@/lib/rpc";
@@ -176,11 +237,13 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
  
  type Order = {
    id: string;
-@@ -158,10 +159,8 @@
+@@ -186,12 +187,8 @@
                  </div>
                  <div className="flex flex-wrap gap-2">
                    <Badge variant="outline">{o.pickup_code}</Badge>
--                  <Badge variant="secondary">{t(`status.${o.status}` as TKey)}</Badge>
+-                  <Badge variant={o.status === "cancelled" ? "destructive" : "secondary"}>
+-                    {t(`status.${o.status}` as TKey)}
+-                  </Badge>
 -                  <Badge variant={o.payment_status === "paid" ? "default" : "outline"}>
 -                    {t(`pay.${o.payment_status}` as TKey)}
 -                  </Badge>
@@ -189,9 +252,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
                  </div>
                </div>
  
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/console/Settings.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/console/Settings.tsx
---- a/src/components/console/Settings.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/components/console/Settings.tsx	2026-09-13 06:15:25.789122976 +0000
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/Settings.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/Settings.tsx
+--- a/src/components/console/Settings.tsx	2026-09-13 06:22:34.555999822 +0000
++++ b/src/components/console/Settings.tsx	2026-09-13 06:22:55.282277846 +0000
 @@ -11,6 +11,7 @@
  import { useI18n, translateError } from "@/lib/i18n";
  import { useAuth } from "@/lib/auth";
@@ -216,9 +279,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
  }) {
    const { t } = useI18n();
    const { user } = useAuth();
-@@ -165,6 +170,12 @@
-         </CardContent>
-       </Card>
+@@ -174,6 +179,12 @@
+         }}
+       />
  
 +      <AppearanceSettings
 +        orgId={orgId}
@@ -226,21 +289,21 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +        initialButtonColor={buttonColor}
 +      />
 +
-       <ImageCropper
-         file={cropFile}
-         onCancel={() => setCropFile(null)}
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/shop/ShopPage.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/shop/ShopPage.tsx
---- a/src/components/shop/ShopPage.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/components/shop/ShopPage.tsx	2026-09-13 06:15:25.499819567 +0000
-@@ -21,6 +21,7 @@
+       <Card className="lg:col-span-2">
+         <CardContent className="grid gap-4 p-4">
+           <div className="grid gap-2">
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/shop/ShopPage.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/shop/ShopPage.tsx
+--- a/src/components/shop/ShopPage.tsx	2026-09-13 06:22:34.563479535 +0000
++++ b/src/components/shop/ShopPage.tsx	2026-09-13 06:22:55.267508498 +0000
+@@ -28,6 +28,7 @@
    fileExtension,
    useSignedUrl,
  } from "@/lib/storage";
 +import { DEFAULT_SHOP_THEME, isShopTheme, shopThemeStyle } from "@/lib/shop-theme";
  
- 
- type Variant = {
-@@ -54,7 +55,7 @@
+ type OptionValue = {
+   id: string;
+@@ -78,7 +79,7 @@
      queryFn: async () => {
        const { data: org, error: orgErr } = await supabase
          .from("organizations")
@@ -249,8 +312,8 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
          .order("created_at", { ascending: true })
          .limit(1)
          .maybeSingle();
-@@ -136,6 +137,9 @@
-   const [open, setOpen] = useState(false);
+@@ -171,6 +172,9 @@
+   const [picking, setPicking] = useState<Product | null>(null);
  
    const currency = data?.org?.currency ?? "RM";
 +  const publicTheme = data?.org?.public_theme && isShopTheme(data.org.public_theme)
@@ -259,7 +322,7 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
    const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
    const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
    const count = lines.reduce((sum, l) => sum + l.qty, 0);
-@@ -191,12 +195,15 @@
+@@ -237,12 +241,15 @@
    }
  
    return (
@@ -275,17 +338,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 -          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
 +          <h1 className="font-display text-2xl font-bold sm:text-3xl">🧋 {t("app.tagline")}</h1>
            {data?.org && !data.org.is_open ? (
-             <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
-               {t("shop.closed")}
-@@ -281,6 +288,7 @@
-                         ) : (
-                           <Button
-                             size="sm"
-+                            variant="shop"
-                             className="h-9"
-                             disabled={productQtyInCart >= product.stock}
-                             onClick={() => addToCart(product, variant)}
-@@ -308,7 +316,7 @@
+             <p
+               className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+@@ -331,7 +338,7 @@
            </div>
            <Sheet open={open} onOpenChange={setOpen}>
              <SheetTrigger asChild>
@@ -294,7 +349,7 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
                  {t("shop.checkout")}
                </Button>
              </SheetTrigger>
-@@ -625,7 +633,7 @@
+@@ -840,7 +847,7 @@
          </p>
        ) : null}
  
@@ -303,9 +358,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
          {busy ? t("shop.placing") : t("shop.placeOrder")}
        </Button>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/components/ui/button.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/components/ui/button.tsx
---- a/src/components/ui/button.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/components/ui/button.tsx	2026-09-13 06:15:44.666949500 +0000
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/ui/button.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/ui/button.tsx
+--- a/src/components/ui/button.tsx	2026-09-13 06:22:34.601198644 +0000
++++ b/src/components/ui/button.tsx	2026-09-13 06:22:55.300364290 +0000
 @@ -5,7 +5,7 @@
  import { cn } from "@/lib/utils";
  
@@ -323,45 +378,37 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
        },
        size: {
          default: "h-9 px-4 py-2",
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/integrations/supabase/types.ts /mnt/documents/SchoolOrder-patch-workspace/source/src/integrations/supabase/types.ts
---- a/src/integrations/supabase/types.ts	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/integrations/supabase/types.ts	2026-09-13 06:15:27.849544372 +0000
-@@ -337,28 +337,34 @@
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/integrations/supabase/types.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/integrations/supabase/types.ts
+--- a/src/integrations/supabase/types.ts	2026-09-13 06:22:34.771293947 +0000
++++ b/src/integrations/supabase/types.ts	2026-09-13 06:22:55.308752300 +0000
+@@ -343,6 +343,8 @@
        }
        organizations: {
          Row: {
 +          button_color: string
++          public_theme: string
            created_at: string
            currency: string
            id: string
-           is_open: boolean
-           name: string
+@@ -351,6 +353,8 @@
            owner_id: string
-+          public_theme: string
          }
          Insert: {
 +          button_color?: string
++          public_theme?: string
            created_at?: string
            currency?: string
            id?: string
-           is_open?: boolean
-           name: string
+@@ -359,6 +363,8 @@
            owner_id: string
-+          public_theme?: string
          }
          Update: {
 +          button_color?: string
++          public_theme?: string
            created_at?: string
            currency?: string
            id?: string
-           is_open?: boolean
-           name?: string
-           owner_id?: string
-+          public_theme?: string
-         }
-         Relationships: []
-       }
-@@ -677,6 +683,10 @@
+@@ -785,6 +791,10 @@
        [_ in never]: never
      }
      Functions: {
@@ -372,10 +419,10 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
        adjust_stock: {
          Args: {
            p_delta: number
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/lib/i18n.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/lib/i18n.tsx
---- a/src/lib/i18n.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/lib/i18n.tsx	2026-09-13 06:15:26.205544086 +0000
-@@ -38,6 +38,7 @@
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/i18n.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/i18n.tsx
+--- a/src/lib/i18n.tsx	2026-09-13 06:22:34.791261283 +0000
++++ b/src/lib/i18n.tsx	2026-09-13 06:23:15.392752692 +0000
+@@ -130,6 +130,7 @@
    "nav.dealers": { en: "Dealers", zh: "经销商", ms: "Pengedar" },
    "nav.requests": { en: "My requests", zh: "我的请求", ms: "Permintaan Saya" },
    "nav.settings": { en: "Settings", zh: "设置", ms: "Tetapan" },
@@ -383,34 +430,18 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
    "common.language": { en: "Language", zh: "语言", ms: "Bahasa" },
    "common.theme": { en: "Theme", zh: "主题", ms: "Tema" },
    "common.light": { en: "Light", zh: "浅色", ms: "Cerah" },
-@@ -183,6 +184,26 @@
+@@ -283,6 +284,10 @@
      ms: "Simpan pautan halaman ini — ia satu-satunya cara kembali ke pesanan anda.",
    },
    "order.payNow": { en: "Scan to pay", zh: "扫码付款", ms: "Imbas untuk bayar" },
-+  "order.statusHint.pending": {
-+    en: "We received your order and the shop is reviewing it.",
-+    zh: "订单已收到，商家正在确认。",
-+    ms: "Pesanan diterima dan sedang disemak.",
-+  },
-+  "order.statusHint.confirmed": {
-+    en: "Your order is confirmed and being prepared.",
-+    zh: "订单已确认，正在准备中。",
-+    ms: "Pesanan disahkan dan sedang disediakan.",
-+  },
-+  "order.statusHint.completed": {
-+    en: "This order is complete. Enjoy!",
-+    zh: "订单已完成，请享用！",
-+    ms: "Pesanan selesai. Selamat menikmati!",
-+  },
-+  "order.statusHint.cancelled": {
-+    en: "This order was cancelled. No further action is needed.",
-+    zh: "订单已取消，无需继续操作。",
-+    ms: "Pesanan dibatalkan. Tiada tindakan lanjut diperlukan.",
-+  },
++  "order.statusHint.pending": { en: "We received your order and the shop is reviewing it.", zh: "订单已收到，商家正在确认。", ms: "Pesanan diterima dan sedang disemak." },
++  "order.statusHint.confirmed": { en: "Your order is confirmed and being prepared.", zh: "订单已确认，正在准备中。", ms: "Pesanan disahkan dan sedang disediakan." },
++  "order.statusHint.completed": { en: "This order is complete. Enjoy!", zh: "订单已完成，请享用！", ms: "Pesanan selesai. Selamat menikmati!" },
++  "order.statusHint.cancelled": { en: "This order was cancelled. No further action is needed.", zh: "订单已取消，无需继续操作。", ms: "Pesanan dibatalkan. Tiada tindakan lanjut diperlukan." },
  
    "req.draft": { en: "Draft", zh: "草稿", ms: "Draf" },
    "req.submitted": { en: "Submitted", zh: "已提交", ms: "Dihantar" },
-@@ -339,6 +360,14 @@
+@@ -451,6 +456,14 @@
    "set.uploadQr": { en: "Upload QR image", zh: "上传 QR 图片", ms: "Muat naik imej QR" },
    "set.myUserId": { en: "My user ID", zh: "我的用户 ID", ms: "ID pengguna saya" },
    "set.shopLink": { en: "Public shop link", zh: "公开商店链接", ms: "Pautan kedai awam" },
@@ -425,17 +456,17 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
  
    "err.OUT_OF_STOCK": { en: "Out of stock:", zh: "库存不足：", ms: "Kehabisan stok:" },
    "err.SHOP_CLOSED": { en: "The shop is closed.", zh: "商店已关闭。", ms: "Kedai ditutup." },
-@@ -375,6 +404,7 @@
-   "err.PRODUCT_NOT_FOUND": { en: "Product not found.", zh: "找不到产品。", ms: "Produk tidak dijumpai." },
-   "err.NEGATIVE_STOCK": { en: "Stock cannot go below zero.", zh: "库存不能为负。", ms: "Stok tidak boleh negatif." },
-   "err.FORBIDDEN": { en: "You are not allowed to do that.", zh: "你没有权限执行此操作。", ms: "Anda tiada kebenaran." },
+@@ -510,6 +523,7 @@
+     zh: "库存不能为负。",
+     ms: "Stok tidak boleh negatif.",
+   },
 +  "err.INVALID_APPEARANCE": { en: "Choose a valid theme and colour.", zh: "请选择有效的主题和颜色。", ms: "Pilih tema dan warna yang sah." },
- } as const;
- 
- export type TKey = keyof typeof dict;
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/lib/org.ts /mnt/documents/SchoolOrder-patch-workspace/source/src/lib/org.ts
---- a/src/lib/org.ts	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/lib/org.ts	2026-09-13 06:15:25.874526952 +0000
+   "err.FORBIDDEN": {
+     en: "You are not allowed to do that.",
+     zh: "你没有权限执行此操作。",
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/org.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/org.ts
+--- a/src/lib/org.ts	2026-09-13 06:22:34.796542241 +0000
++++ b/src/lib/org.ts	2026-09-13 06:22:55.289454900 +0000
 @@ -13,6 +13,8 @@
      currency: string;
      is_open: boolean;
@@ -454,9 +485,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
          .eq("id", member.organization_id)
          .maybeSingle();
        if (orgErr) throw orgErr;
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/lib/shop-theme.ts /mnt/documents/SchoolOrder-patch-workspace/source/src/lib/shop-theme.ts
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/shop-theme.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/shop-theme.ts
 --- a/src/lib/shop-theme.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/lib/shop-theme.ts	2026-09-13 06:15:27.853429683 +0000
++++ b/src/lib/shop-theme.ts	2026-09-13 06:22:54.112989464 +0000
 @@ -0,0 +1,27 @@
 +import type { CSSProperties } from "react";
 +
@@ -486,9 +517,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +  } as CSSProperties;
 +}
 \ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/routes/__root.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/routes/__root.tsx
---- a/src/routes/__root.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/routes/__root.tsx	2026-09-13 06:15:25.628695060 +0000
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/routes/__root.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/routes/__root.tsx
+--- a/src/routes/__root.tsx	2026-09-13 06:22:34.829250460 +0000
++++ b/src/routes/__root.tsx	2026-09-13 06:23:15.405862440 +0000
 @@ -92,7 +92,7 @@
        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
        {
@@ -498,77 +529,14 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
        },
        { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
      ],
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/routes/console.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/routes/console.tsx
---- a/src/routes/console.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/routes/console.tsx	2026-09-13 06:15:25.933500380 +0000
-@@ -17,6 +17,7 @@
- import { Dealers } from "@/components/console/Dealers";
- import { Requests } from "@/components/console/Requests";
- import { Settings } from "@/components/console/Settings";
-+import { AppearanceSettings } from "@/components/console/AppearanceSettings";
- import { useAuth } from "@/lib/auth";
- import { useMembership } from "@/lib/org";
- import { useI18n, translateError, type TKey } from "@/lib/i18n";
-@@ -91,7 +92,10 @@
-         { id: "dealers", label: t("nav.dealers") },
-         { id: "settings", label: t("nav.settings") },
-       ]
--    : [{ id: "dashboard", label: t("nav.requests") }];
-+    : [
-+        { id: "dashboard", label: t("nav.requests") },
-+        { id: "settings", label: t("nav.appearance") },
-+      ];
- 
-   return (
-     <div className="min-h-screen bg-background">
-@@ -104,8 +108,7 @@
-           </Badge>
-         </div>
- 
--        {isOwner ? (
--          <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
-+        <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
-             {tabs.map((tb) => (
-               <Button
-                 key={tb.id}
-@@ -117,10 +120,9 @@
-                 {tb.label}
-               </Button>
-             ))}
--          </nav>
--        ) : null}
-+        </nav>
- 
--        {!isOwner ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
-+        {!isOwner && tab === "dashboard" ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
-         {isOwner && tab === "dashboard" ? (
-           <Dashboard orgId={organizationId} currency={organization.currency} />
-         ) : null}
-@@ -142,6 +144,15 @@
-             name={organization.name}
-             currency={organization.currency}
-             isOpen={organization.is_open}
-+            publicTheme={organization.public_theme}
-+            buttonColor={organization.button_color}
-+          />
-+        ) : null}
-+        {!isOwner && tab === "settings" ? (
-+          <AppearanceSettings
-+            orgId={organizationId}
-+            initialTheme={organization.public_theme}
-+            initialButtonColor={organization.button_color}
-           />
-         ) : null}
-       </main>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/routes/order.$token.tsx /mnt/documents/SchoolOrder-patch-workspace/source/src/routes/order.$token.tsx
---- a/src/routes/order.$token.tsx	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/routes/order.$token.tsx	2026-09-13 06:15:27.593581018 +0000
-@@ -1,16 +1,15 @@
- import { useRef, useState } from "react";
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/routes/order.$token.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/routes/order.$token.tsx
+--- a/src/routes/order.$token.tsx	2026-09-13 06:22:34.847824977 +0000
++++ b/src/routes/order.$token.tsx	2026-09-13 06:23:15.381305136 +0000
+@@ -1,17 +1,17 @@
  import { createFileRoute } from "@tanstack/react-router";
  import { useQuery } from "@tanstack/react-query";
--import { CheckCircle2, Copy, Printer, Upload, Loader2 } from "lucide-react";
-+import { Copy, Printer, Upload, Loader2 } from "lucide-react";
+-import { CheckCircle2, Copy, Printer } from "lucide-react";
++import { Copy, Printer } from "lucide-react";
  import { toast } from "sonner";
  import { supabase } from "@/integrations/supabase/client";
  import { SiteHeader } from "@/components/SiteHeader";
@@ -577,48 +545,47 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 -import { Badge } from "@/components/ui/badge";
  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  import { Separator } from "@/components/ui/separator";
--import { useI18n, translateError, type TKey } from "@/lib/i18n";
-+import { useI18n, translateError } from "@/lib/i18n";
+-import { useI18n, type TKey } from "@/lib/i18n";
++import { useI18n } from "@/lib/i18n";
  import { money, dateTime } from "@/lib/format";
- import {
-   PROOF_BUCKET,
-@@ -19,6 +18,7 @@
-   fileExtension,
-   useSignedUrl,
- } from "@/lib/storage";
+ import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
 +import { OrderStatusBanner } from "@/components/OrderStatus";
  
  export const Route = createFileRoute("/order/$token")({
    head: () => ({
-@@ -135,13 +135,14 @@
+@@ -90,18 +90,19 @@
+   return (
+     <div className="min-h-screen bg-background">
+       <SiteHeader subtitle={order?.organization_name} />
+-      <main className="mx-auto max-w-2xl px-4 py-6">
++      <main className="mx-auto max-w-5xl px-4 py-6">
+         {orderQuery.isLoading ? <LoadingState /> : null}
          {orderQuery.isError ? <ErrorState message={t("order.notFound")} /> : null}
  
          {order ? (
 -          <div className="flex flex-col gap-4">
--            <Card>
 +          <div className="grid items-start gap-4 lg:grid-cols-[0.8fr_1.2fr]">
 +            <div className="grid gap-4 lg:sticky lg:top-6">
 +              <OrderStatusBanner status={order.status} paymentStatus={order.payment_status} />
-+              <Card>
+             <Card>
                <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
 -                <CheckCircle2 className="h-8 w-8 text-primary" aria-hidden />
 -                <h1 className="text-lg font-semibold">{t("order.title")}</h1>
-+                <p className="text-sm font-semibold text-primary">{t("order.title")}</p>
++                <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
                  <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
 -                <p className="text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
 +                <p className="font-display text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
                  <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
                  <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
                    <Button variant="outline" size="sm" onClick={() => window.print()}>
-@@ -163,16 +164,12 @@
+@@ -123,16 +124,13 @@
                  <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
                </CardContent>
              </Card>
 +            </div>
  
--            <Card>
 +            <div className="grid gap-4">
-+              <Card>
+             <Card>
                <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
                  <CardTitle className="text-base">{order.order_number}</CardTitle>
 -                <div className="flex gap-2">
@@ -627,15 +594,11 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 -                    {t(`pay.${order.payment_status}` as TKey)}
 -                  </Badge>
 -                </div>
++
                </CardHeader>
                <CardContent className="flex flex-col gap-3 text-sm">
                  <p className="text-muted-foreground">
-@@ -249,10 +246,11 @@
-             ) : null}
- 
-             {order.payment_method === "cash" ? (
--              <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-+              <p className="rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
+@@ -198,6 +196,7 @@
                  {t("shop.cashNote")}
                </p>
              ) : null}
@@ -643,9 +606,9 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
            </div>
          ) : null}
        </main>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/src/styles.css /mnt/documents/SchoolOrder-patch-workspace/source/src/styles.css
---- a/src/styles.css	2026-09-12 13:12:41.000000000 +0000
-+++ b/src/styles.css	2026-09-13 06:15:27.857236551 +0000
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/styles.css /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/styles.css
+--- a/src/styles.css	2026-09-13 06:22:34.882256745 +0000
++++ b/src/styles.css	2026-09-13 06:23:47.209282335 +0000
 @@ -16,7 +16,8 @@
    --radius-lg: var(--radius);
    --radius-xl: calc(var(--radius) + 4px);
@@ -660,14 +623,14 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
    --success-foreground: oklch(0.99 0.005 150);
    --warning: oklch(0.75 0.15 75);
    --warning-foreground: oklch(0.24 0.05 75);
-+  --status-pending-bg: oklch(0.95 0.055 85);
-+  --status-pending-fg: oklch(0.38 0.09 70);
-+  --status-confirmed-bg: oklch(0.94 0.045 220);
-+  --status-confirmed-fg: oklch(0.37 0.1 235);
-+  --status-completed-bg: oklch(0.94 0.055 155);
-+  --status-completed-fg: oklch(0.35 0.1 155);
-+  --status-cancelled-bg: oklch(0.94 0.045 25);
-+  --status-cancelled-fg: oklch(0.45 0.16 25);
++  --status-pending-bg: oklch(0.94 0.05 85);
++  --status-pending-fg: oklch(0.36 0.1 75);
++  --status-confirmed-bg: oklch(0.93 0.05 225);
++  --status-confirmed-fg: oklch(0.35 0.11 235);
++  --status-completed-bg: oklch(0.93 0.06 155);
++  --status-completed-fg: oklch(0.34 0.11 155);
++  --status-cancelled-bg: oklch(0.94 0.05 25);
++  --status-cancelled-fg: oklch(0.4 0.14 25);
    --border: oklch(0.9 0.01 165);
    --input: oklch(0.9 0.01 165);
    --ring: oklch(0.58 0.13 172);
@@ -686,10 +649,11 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
    --border: oklch(1 0 0 / 12%);
    --input: oklch(1 0 0 / 16%);
    --ring: oklch(0.72 0.13 172);
-@@ -135,6 +152,133 @@
-   --sidebar-ring: oklch(0.72 0.13 172);
+@@ -172,3 +189,35 @@
+     color: #000;
+   }
  }
- 
++
 +@utility font-display {
 +  font-family: var(--font-display);
 +  letter-spacing: 0;
@@ -698,131 +662,32 @@ diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/sr
 +@utility shop-button {
 +  background-color: var(--shop-button, var(--color-primary));
 +  color: var(--shop-button-foreground, var(--color-primary-foreground));
-+  &:hover {
-+    filter: brightness(0.92);
-+    transform: translateY(-1px);
-+  }
-+  &:active {
-+    transform: scale(0.985);
-+  }
++  &:hover { filter: brightness(0.92); transform: translateY(-1px); }
++  &:active { transform: scale(0.985); }
 +}
 +
-+@utility status-pending {
-+  background-color: var(--status-pending-bg);
-+  color: var(--status-pending-fg);
-+  border-color: color-mix(in oklab, var(--status-pending-fg) 20%, transparent);
-+}
-+
-+@utility status-confirmed {
-+  background-color: var(--status-confirmed-bg);
-+  color: var(--status-confirmed-fg);
-+  border-color: color-mix(in oklab, var(--status-confirmed-fg) 20%, transparent);
-+}
-+
-+@utility status-completed {
-+  background-color: var(--status-completed-bg);
-+  color: var(--status-completed-fg);
-+  border-color: color-mix(in oklab, var(--status-completed-fg) 20%, transparent);
-+}
-+
-+@utility status-cancelled {
-+  background-color: var(--status-cancelled-bg);
-+  color: var(--status-cancelled-fg);
-+  border-color: color-mix(in oklab, var(--status-cancelled-fg) 20%, transparent);
-+}
-+
-+@utility payment-pending_payment {
-+  background-color: var(--status-pending-bg);
-+  color: var(--status-pending-fg);
-+  border-color: transparent;
-+}
-+
-+@utility payment-proof_uploaded {
-+  background-color: var(--status-confirmed-bg);
-+  color: var(--status-confirmed-fg);
-+  border-color: transparent;
-+}
-+
-+@utility payment-paid {
-+  background-color: var(--status-completed-bg);
-+  color: var(--status-completed-fg);
-+  border-color: transparent;
-+}
-+
-+@utility payment-rejected {
-+  background-color: var(--status-cancelled-bg);
-+  color: var(--status-cancelled-fg);
-+  border-color: transparent;
-+}
-+
-+@utility status-banner {
-+  display: grid;
-+  grid-template-columns: auto minmax(0, 1fr);
-+  gap: 0.75rem;
-+  align-items: center;
-+  border: 1px solid;
-+  border-radius: var(--radius-lg);
-+  padding: 1rem;
-+  box-shadow: 0 8px 24px color-mix(in oklab, currentColor 8%, transparent);
-+  & > :last-child:nth-child(3) {
-+    grid-column: 1 / -1;
-+    justify-self: start;
-+  }
-+}
-+
-+@utility status-banner-icon {
-+  display: grid;
-+  width: 2.75rem;
-+  height: 2.75rem;
-+  place-items: center;
-+  border-radius: 999px;
-+  background-color: color-mix(in oklab, currentColor 12%, transparent);
-+  font-size: 1.25rem;
-+  font-weight: 700;
-+}
-+
-+@utility theme-choice {
-+  display: grid;
-+  gap: 0.4rem;
-+  justify-items: center;
-+  border: 1px solid var(--color-border);
-+  border-radius: var(--radius-md);
-+  padding: 0.6rem;
-+  font-size: 0.75rem;
-+  font-weight: 600;
-+  transition: border-color 160ms ease, box-shadow 160ms ease;
-+  &:hover {
-+    border-color: var(--color-primary);
-+  }
-+}
-+
-+@utility theme-choice-active {
-+  border-color: var(--color-primary);
-+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 18%, transparent);
-+}
-+
-+@utility theme-choice-swatch {
-+  display: block;
-+  width: 100%;
-+  height: 1.75rem;
-+  border-radius: calc(var(--radius-md) - 2px);
-+  background: var(--theme-preview);
-+}
-+
++@utility status-pending { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: color-mix(in oklab, var(--status-pending-fg) 20%, transparent); }
++@utility status-confirmed { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: color-mix(in oklab, var(--status-confirmed-fg) 20%, transparent); }
++@utility status-completed { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: color-mix(in oklab, var(--status-completed-fg) 20%, transparent); }
++@utility status-cancelled { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: color-mix(in oklab, var(--status-cancelled-fg) 20%, transparent); }
++@utility payment-pending_payment { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: transparent; }
++@utility payment-proof_uploaded { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: transparent; }
++@utility payment-paid { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: transparent; }
++@utility payment-rejected { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: transparent; }
++@utility status-banner { display: flex; flex-direction: column; gap: 0.75rem; border: 1px solid currentColor; padding: 1.25rem; }
++@utility status-banner-icon { display: grid; height: 3rem; width: 3rem; place-items: center; border-radius: 9999px; background: color-mix(in oklab, currentColor 12%, transparent); font-size: 1.5rem; }
++@utility theme-choice { display: flex; min-width: 0; flex-direction: column; gap: 0.5rem; border: 1px solid var(--color-border); padding: 0.5rem; text-align: left; transition: border-color 150ms, box-shadow 150ms; &:hover { border-color: var(--color-primary); } }
++@utility theme-choice-active { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 24%, transparent); }
++@utility theme-choice-swatch { height: 2.75rem; width: 100%; background: var(--theme-preview); }
 +.theme-choice-ocean { --theme-preview: linear-gradient(90deg, #0c2340 0 50%, #2d8a9e 50%); }
 +.theme-choice-mint { --theme-preview: linear-gradient(90deg, #17362d 0 50%, #0b7a5a 50%); }
 +.theme-choice-coral { --theme-preview: linear-gradient(90deg, #252525 0 50%, #e85d3a 50%); }
-+
-+.shop-theme-ocean { --background: oklch(0.985 0.008 210); --foreground: oklch(0.25 0.055 245); --accent: oklch(0.93 0.04 205); }
-+.shop-theme-mint { --background: oklch(0.985 0.008 155); --foreground: oklch(0.25 0.045 155); --accent: oklch(0.93 0.04 155); }
-+.shop-theme-coral { --background: oklch(0.985 0.006 55); --foreground: oklch(0.24 0.015 40); --accent: oklch(0.94 0.045 35); }
-+
- @layer base {
-   * {
-     border-color: var(--color-border);
-diff -ruN '--exclude=.env' '--exclude=node_modules' /tmp/schoolorder-original/supabase/migrations/20260913070000_shop_appearance_and_status.sql /mnt/documents/SchoolOrder-patch-workspace/source/supabase/migrations/20260913070000_shop_appearance_and_status.sql
++.shop-theme-ocean { --background: oklch(0.98 0.01 210); --foreground: oklch(0.24 0.04 245); --accent: oklch(0.93 0.035 205); }
++.shop-theme-mint { --background: oklch(0.985 0.012 160); --foreground: oklch(0.25 0.035 165); --accent: oklch(0.93 0.04 160); }
++.shop-theme-coral { --background: oklch(0.985 0.012 45); --foreground: oklch(0.23 0.02 35); --accent: oklch(0.94 0.045 45); }
+diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/supabase/migrations/20260913070000_shop_appearance_and_status.sql /mnt/documents/SchoolOrder-patch-workspace/latest-modified/supabase/migrations/20260913070000_shop_appearance_and_status.sql
 --- a/supabase/migrations/20260913070000_shop_appearance_and_status.sql	1970-01-01 00:00:00.000000000 +0000
-+++ b/supabase/migrations/20260913070000_shop_appearance_and_status.sql	2026-09-13 06:15:44.752016572 +0000
++++ b/supabase/migrations/20260913070000_shop_appearance_and_status.sql	2026-09-13 06:22:54.125306386 +0000
 @@ -0,0 +1,44 @@
 +-- Public shop appearance. Values are constrained before they can reach CSS.
 +alter table public.organizations

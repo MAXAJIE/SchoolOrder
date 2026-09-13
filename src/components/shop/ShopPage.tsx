@@ -28,6 +28,7 @@ import {
   fileExtension,
   useSignedUrl,
 } from "@/lib/storage";
+import { DEFAULT_SHOP_THEME, isShopTheme, shopThemeStyle } from "@/lib/shop-theme";
 
 type OptionValue = {
   id: string;
@@ -78,7 +79,7 @@ function useShopData() {
     queryFn: async () => {
       const { data: org, error: orgErr } = await supabase
         .from("organizations")
-        .select("id, name, currency, is_open")
+        .select("id, name, currency, is_open, public_theme, button_color")
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -171,6 +172,9 @@ export function ShopPage() {
   const [picking, setPicking] = useState<Product | null>(null);
 
   const currency = data?.org?.currency ?? "RM";
+  const publicTheme = data?.org?.public_theme && isShopTheme(data.org.public_theme)
+    ? data.org.public_theme
+    : DEFAULT_SHOP_THEME;
   const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
   const count = lines.reduce((sum, l) => sum + l.qty, 0);
@@ -237,12 +241,15 @@ export function ShopPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div
+      className={`shop-theme shop-theme-${publicTheme} min-h-screen bg-background pb-24`}
+      style={shopThemeStyle(data?.org?.button_color)}
+    >
       <SiteHeader subtitle={data?.org?.name} />
 
       <main className="mx-auto max-w-6xl px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">🧋 {t("app.tagline")}</h1>
           {data?.org && !data.org.is_open ? (
             <p
               className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -331,7 +338,7 @@ export function ShopPage() {
           </div>
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
+              <Button variant="shop" className="h-11" disabled={count === 0 || !data?.org?.is_open}>
                 {t("shop.checkout")}
               </Button>
             </SheetTrigger>
@@ -840,7 +847,7 @@ function CheckoutForm({
         </p>
       ) : null}
 
-      <Button type="submit" className="h-12" disabled={busy}>
+      <Button type="submit" variant="shop" className="h-12" disabled={busy}>
         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
         {busy ? t("shop.placing") : t("shop.placeOrder")}
       </Button>
