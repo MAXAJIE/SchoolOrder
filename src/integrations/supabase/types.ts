@@ -151,6 +151,8 @@ export type Database = {
       }
       order_items: {
         Row: {
+          options: Json | null
+          product_id: string | null
           id: string
           line_total: number
           order_id: string
@@ -163,6 +165,8 @@ export type Database = {
           variant_name: string
         }
         Insert: {
+          options?: Json | null
+          product_id?: string | null
           id?: string
           line_total: number
           order_id: string
@@ -175,6 +179,8 @@ export type Database = {
           variant_name: string
         }
         Update: {
+          options?: Json | null
+          product_id?: string | null
           id?: string
           line_total?: number
           order_id?: string
@@ -448,8 +454,106 @@ export type Database = {
           },
         ]
       }
+      product_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_required: boolean
+          max_select: number
+          name: string
+          organization_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_select?: number
+          name: string
+          organization_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_select?: number
+          name?: string
+          organization_id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_options_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_options_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_option_values: {
+        Row: {
+          cost_delta: number
+          created_at: string
+          id: string
+          label: string
+          option_id: string
+          organization_id: string
+          price_delta: number
+          sort_order: number
+        }
+        Insert: {
+          cost_delta?: number
+          created_at?: string
+          id?: string
+          label: string
+          option_id: string
+          organization_id: string
+          price_delta?: number
+          sort_order?: number
+        }
+        Update: {
+          cost_delta?: number
+          created_at?: string
+          id?: string
+          label?: string
+          option_id?: string
+          organization_id?: string
+          price_delta?: number
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_option_values_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "product_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_option_values_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
+          base_price: number
+          cost_price: number
           created_at: string
           description: string | null
           id: string
@@ -462,6 +566,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          base_price?: number
+          cost_price?: number
           created_at?: string
           description?: string | null
           id?: string
@@ -474,6 +580,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          base_price?: number
+          cost_price?: number
           created_at?: string
           description?: string | null
           id?: string

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, History, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -39,11 +39,17 @@ type Order = {
   order_items: { product_name: string; variant_name: string; quantity: number }[];
 };
 
+/** Orders that left the counter: nothing left to do, so they live in history. */
+function isHistory(order: Order) {
+  return order.status === "completed" || order.status === "cancelled";
+}
+
 export function Orders({ orgId, currency }: { orgId: string; currency: string }) {
   const { t } = useI18n();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "unpaid" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "unpaid">("all");
+  const [history, setHistory] = useState(false);
 
   const query = useQuery({
     queryKey: ["orders", orgId],
@@ -86,9 +92,12 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
       toast.success(t("common.save"));
       void qc.invalidateQueries({ queryKey: ["orders", orgId] });
       void qc.invalidateQueries({ queryKey: ["products", orgId] });
+      void qc.invalidateQueries({ queryKey: ["dashboard", orgId] });
     },
     onError: (err: Error) => toast.error(translateError(t, err.message)),
   });
+
+  const historyCount = useMemo(() => (query.data ?? []).filter(isHistory).length, [query.data]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -99,12 +108,14 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
         o.buyer_name.toLowerCase().includes(q) ||
         o.pickup_code.toLowerCase().includes(q);
       if (!matches) return false;
+      // Finished and cancelled orders only ever show inside history.
+      if (history) return isHistory(o);
+      if (isHistory(o)) return false;
       if (filter === "pending") return o.status === "pending";
-      if (filter === "completed") return o.status === "completed";
-      if (filter === "unpaid") return o.payment_status !== "paid" && o.status !== "cancelled";
+      if (filter === "unpaid") return o.payment_status !== "paid";
       return true;
     });
-  }, [query.data, search, filter]);
+  }, [query.data, search, filter, history]);
 
   async function openProof(path: string) {
     const url = await signedUrl(PROOF_BUCKET, path);
@@ -125,27 +136,44 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
           />
         </div>
         <div className="flex gap-2 overflow-x-auto">
-          {(["all", "pending", "unpaid", "completed"] as const).map((f) => (
-            <Button
-              key={f}
-              size="sm"
-              variant={filter === f ? "default" : "outline"}
-              className="h-11 shrink-0"
-              onClick={() => setFilter(f)}
-            >
-              {f === "all"
-                ? t("nav.orders")
-                : f === "unpaid"
-                  ? t("dash.unpaid")
-                  : t(`status.${f}` as TKey)}
-            </Button>
-          ))}
+          {!history
+            ? (["all", "pending", "unpaid"] as const).map((f) => (
+                <Button
+                  key={f}
+                  size="sm"
+                  variant={filter === f ? "default" : "outline"}
+                  className="h-11 shrink-0"
+                  onClick={() => setFilter(f)}
+                >
+                  {f === "all"
+                    ? t("ord.active")
+                    : f === "unpaid"
+                      ? t("dash.unpaid")
+                      : t(`status.${f}` as TKey)}
+                </Button>
+              ))
+            : null}
+          <Button
+            size="sm"
+            variant={history ? "default" : "ghost"}
+            className="h-11 shrink-0"
+            onClick={() => setHistory((v) => !v)}
+          >
+            {history ? (
+              <ArrowLeft className="mr-1 h-4 w-4" />
+            ) : (
+              <History className="mr-1 h-4 w-4" />
+            )}
+            {history ? t("ord.backToActive") : `${t("ord.history")} (${historyCount})`}
+          </Button>
         </div>
       </div>
 
       {query.isLoading ? <LoadingState /> : null}
       {query.isError ? <ErrorState onRetry={() => void query.refetch()} /> : null}
-      {!query.isLoading && filtered.length === 0 ? <EmptyState label={t("ord.empty")} /> : null}
+      {!query.isLoading && filtered.length === 0 ? (
+        <EmptyState label={history ? t("ord.historyEmpty") : t("ord.empty")} />
+      ) : null}
 
       <div className="grid gap-3">
         {filtered.map((o) => (
@@ -158,7 +186,9 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{o.pickup_code}</Badge>
-                  <Badge variant="secondary">{t(`status.${o.status}` as TKey)}</Badge>
+                  <Badge variant={o.status === "cancelled" ? "destructive" : "secondary"}>
+                    {t(`status.${o.status}` as TKey)}
+                  </Badge>
                   <Badge variant={o.payment_status === "paid" ? "default" : "outline"}>
                     {t(`pay.${o.payment_status}` as TKey)}
                   </Badge>
@@ -171,14 +201,32 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                 {o.buyer_class ? ` · ${o.buyer_class}` : ""}
               </p>
               <p className="text-sm text-muted-foreground">
-                {o.order_items.map((i) => `${i.product_name} · ${i.variant_name} ×${i.quantity}`).join(", ")}
+                {o.order_items
+                  .map((i) => `${i.product_name} · ${i.variant_name} ×${i.quantity}`)
+                  .join(", ")}
               </p>
-              <p className="text-base font-bold">{money(o.total, currency)}</p>
+              <p
+                className={
+                  o.status === "cancelled"
+                    ? "text-base font-bold text-muted-foreground line-through"
+                    : "text-base font-bold"
+                }
+              >
+                {money(o.total, currency)}
+              </p>
+              {o.status === "cancelled" ? (
+                <p className="text-xs text-muted-foreground">{t("ord.cancelledNote")}</p>
+              ) : null}
 
-              {o.status !== "cancelled" ? (
+              {!isHistory(o) ? (
                 <div className="flex flex-wrap gap-2">
                   {o.payment_proof_path ? (
-                    <Button size="sm" variant="outline" className="h-10" onClick={() => void openProof(o.payment_proof_path!)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-10"
+                      onClick={() => void openProof(o.payment_proof_path!)}
+                    >
                       {t("ord.viewProof")}
                     </Button>
                   ) : null}
@@ -186,7 +234,12 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                     <Button
                       size="sm"
                       className="h-10"
-                      onClick={() => update.mutate({ id: o.id, patch: { payment_status: "paid", status: "confirmed" } })}
+                      onClick={() =>
+                        update.mutate({
+                          id: o.id,
+                          patch: { payment_status: "paid", status: "confirmed" },
+                        })
+                      }
                     >
                       {t("ord.markPaid")}
                     </Button>
@@ -196,21 +249,21 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                       size="sm"
                       variant="outline"
                       className="h-10"
-                      onClick={() => update.mutate({ id: o.id, patch: { payment_status: "rejected" } })}
+                      onClick={() =>
+                        update.mutate({ id: o.id, patch: { payment_status: "rejected" } })
+                      }
                     >
                       {t("ord.rejectProof")}
                     </Button>
                   ) : null}
-                  {o.status !== "completed" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-10"
-                      onClick={() => update.mutate({ id: o.id, patch: { status: "completed" } })}
-                    >
-                      {t("ord.complete")}
-                    </Button>
-                  ) : null}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-10"
+                    onClick={() => update.mutate({ id: o.id, patch: { status: "completed" } })}
+                  >
+                    {t("ord.complete")}
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="sm" variant="outline" className="h-10 text-destructive">
@@ -230,6 +283,17 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                </div>
+              ) : o.payment_proof_path ? (
+                <div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-10"
+                    onClick={() => void openProof(o.payment_proof_path!)}
+                  >
+                    {t("ord.viewProof")}
+                  </Button>
                 </div>
               ) : null}
             </CardContent>

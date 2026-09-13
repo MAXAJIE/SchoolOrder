@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConsoleRouteImport } from './routes/console'
+import { Route as GuestRouteImport } from './routes/guest'
+import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as Place_orderRouteImport } from './routes/place_order'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthIndexRouteImport } from './routes/auth.index'
@@ -25,6 +27,16 @@ const IndexRoute = IndexRouteImport.update({
 const ConsoleRoute = ConsoleRouteImport.update({
   id: '/console',
   path: '/console',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestRoute = GuestRouteImport.update({
+  id: '/guest',
+  path: '/guest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerRoute = OwnerRouteImport.update({
+  id: '/owner',
+  path: '/owner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Place_orderRoute = Place_orderRouteImport.update({
@@ -56,6 +68,8 @@ const OrderTokenRoute = OrderTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/console': typeof ConsoleRoute
+  '/guest': typeof GuestRoute
+  '/owner': typeof OwnerRoute
   '/place_order': typeof Place_orderRoute
   '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -65,6 +79,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/console': typeof ConsoleRoute
+  '/guest': typeof GuestRoute
+  '/owner': typeof OwnerRoute
   '/place_order': typeof Place_orderRoute
   '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -75,6 +91,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/console': typeof ConsoleRoute
+  '/guest': typeof GuestRoute
+  '/owner': typeof OwnerRoute
   '/place_order': typeof Place_orderRoute
   '/signup': typeof SignupRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -86,6 +104,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/console'
+    | '/guest'
+    | '/owner'
     | '/place_order'
     | '/signup'
     | '/auth/callback'
@@ -95,6 +115,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/console'
+    | '/guest'
+    | '/owner'
     | '/place_order'
     | '/signup'
     | '/auth/callback'
@@ -104,6 +126,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/console'
+    | '/guest'
+    | '/owner'
     | '/place_order'
     | '/signup'
     | '/auth/callback'
@@ -114,6 +138,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConsoleRoute: typeof ConsoleRoute
+  GuestRoute: typeof GuestRoute
+  OwnerRoute: typeof OwnerRoute
   Place_orderRoute: typeof Place_orderRoute
   SignupRoute: typeof SignupRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
@@ -135,6 +161,20 @@ declare module '@tanstack/react-router' {
       path: '/console'
       fullPath: '/console'
       preLoaderRoute: typeof ConsoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest': {
+      id: '/guest'
+      path: '/guest'
+      fullPath: '/guest'
+      preLoaderRoute: typeof GuestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner': {
+      id: '/owner'
+      path: '/owner'
+      fullPath: '/owner'
+      preLoaderRoute: typeof OwnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/place_order': {
@@ -178,6 +218,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConsoleRoute: ConsoleRoute,
+  GuestRoute: GuestRoute,
+  OwnerRoute: OwnerRoute,
   Place_orderRoute: Place_orderRoute,
   SignupRoute: SignupRoute,
   AuthCallbackRoute: AuthCallbackRoute,

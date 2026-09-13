@@ -27,10 +27,13 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
           .select("id, total, cost_total, status, payment_status, created_at")
           .eq("organization_id", orgId)
           .gte("created_at", since),
+        // Cancelled orders must never reach any report: filter them out at the
+        // source with an inner join so no ghost sales or profit can appear.
         supabase
           .from("order_items")
-          .select("product_name, variant_name, quantity, line_total")
+          .select("product_name, variant_name, quantity, line_total, orders!inner(status)")
           .eq("organization_id", orgId)
+          .neq("orders.status", "cancelled")
           .limit(1000),
         supabase.from("products").select("stock").eq("organization_id", orgId),
       ]);
@@ -57,7 +60,9 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
   ).length;
 
   const byDay = new Map<string, number>();
-  orders.forEach((o) => byDay.set(dayKey(o.created_at), (byDay.get(dayKey(o.created_at)) ?? 0) + Number(o.total)));
+  orders.forEach((o) =>
+    byDay.set(dayKey(o.created_at), (byDay.get(dayKey(o.created_at)) ?? 0) + Number(o.total)),
+  );
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000);
     return { key: dayKey(d), value: byDay.get(dayKey(d)) ?? 0 };
@@ -66,7 +71,7 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
 
   const top = new Map<string, number>();
   (query.data?.items ?? []).forEach((it) => {
-    const label = `${it.product_name} · ${it.variant_name}`;
+    const label = it.variant_name ? `${it.product_name} · ${it.variant_name}` : it.product_name;
     top.set(label, (top.get(label) ?? 0) + (it.quantity ?? 0));
   });
   const topProducts = Array.from(top.entries())
@@ -74,7 +79,13 @@ export function Dashboard({ orgId, currency }: { orgId: string; currency: string
     .slice(0, 5);
 
   const stats = [
-    { label: t("dash.todaySales"), value: money(todays.reduce((s, o) => s + Number(o.total), 0), currency) },
+    {
+      label: t("dash.todaySales"),
+      value: money(
+        todays.reduce((s, o) => s + Number(o.total), 0),
+        currency,
+      ),
+    },
     { label: t("dash.todayOrders"), value: String(todays.length) },
     { label: t("dash.unpaid"), value: String(unpaid) },
     { label: t("dash.stock"), value: String(query.data?.stock ?? 0) },

@@ -32,7 +32,7 @@ export function SiteHeader({ subtitle }: { subtitle?: string | undefined }) {
           {user ? (
             <>
               <Button asChild variant="outline" size="sm" className="h-10">
-                <Link to="/console">
+                <Link to="/owner">
                   <LayoutDashboard className="mr-1 h-4 w-4" />
                   <span className="hidden sm:inline">{t("nav.console")}</span>
                 </Link>

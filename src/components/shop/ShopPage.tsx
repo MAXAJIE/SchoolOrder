@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useI18n, translateError } from "@/lib/i18n";
 import { callRpc } from "@/lib/rpc";
@@ -22,31 +29,48 @@ import {
   useSignedUrl,
 } from "@/lib/storage";
 
-
-type Variant = {
+type OptionValue = {
+  id: string;
+  label: string;
+  price_delta: number;
+  sort_order: number;
+};
+type OptionGroup = {
   id: string;
   name: string;
-  price: number;
+  is_required: boolean;
+  max_select: number;
   sort_order: number;
+  values: OptionValue[];
 };
 type Product = {
   id: string;
   name: string;
   description: string | null;
   image_url: string | null;
+  base_price: number;
   stock: number;
   sort_order: number;
-  product_variants: Variant[];
+  options: OptionGroup[];
 };
+/**
+ * One cart line = one product with one exact set of choices. Two coffees with
+ * different sugar levels are two lines, so the key has to carry the choices.
+ */
 type CartLine = {
+  key: string;
   productId: string;
-  variantId: string;
   productName: string;
-  variantName: string;
+  optionLabel: string;
+  optionValueIds: string[];
   price: number;
   stock: number;
   qty: number;
 };
+
+function lineKey(productId: string, valueIds: string[]) {
+  return `${productId}::${[...valueIds].sort().join(",")}`;
+}
 
 function useShopData() {
   return useQuery({
@@ -64,7 +88,7 @@ function useShopData() {
       const { data: products, error: prodErr } = await supabase
         .from("products")
         .select(
-          "id, name, description, image_url, stock, sort_order, product_variants(id, name, price, sort_order, is_active)",
+          "id, name, description, image_url, base_price, stock, sort_order, product_options(id, name, is_required, max_select, sort_order, product_option_values(id, label, price_delta, sort_order))",
         )
         .eq("organization_id", org.id)
         .eq("is_active", true)
@@ -76,14 +100,24 @@ function useShopData() {
         name: p.name,
         description: p.description,
         image_url: p.image_url,
+        base_price: Number(p.base_price),
         stock: Number(p.stock),
         sort_order: p.sort_order,
-        product_variants: (p.product_variants ?? [])
-          .filter((v: { is_active: boolean }) => v.is_active)
-          .map((v: Variant) => ({ ...v, price: Number(v.price) }))
-          .sort((a: Variant, b: Variant) => a.sort_order - b.sort_order),
+        options: (p.product_options ?? [])
+          .map((o) => ({
+            id: o.id,
+            name: o.name,
+            is_required: o.is_required,
+            max_select: o.max_select,
+            sort_order: o.sort_order,
+            values: (o.product_option_values ?? [])
+              .map((v) => ({ ...v, price_delta: Number(v.price_delta) }))
+              .sort((a, b) => a.sort_order - b.sort_order),
+          }))
+          .filter((o) => o.values.length > 0)
+          .sort((a, b) => a.sort_order - b.sort_order),
       }));
-      return { org, products: cleaned.filter((p) => p.product_variants.length > 0) };
+      return { org, products: cleaned };
     },
   });
 }
@@ -108,22 +142,22 @@ function usePaymentQr(orgId: string, enabled: boolean) {
   });
 }
 
+/**
+ * Product photos are cropped to a square on upload, so a square box with
+ * object-cover shows the whole intended crop, at any screen width.
+ */
 function ProductImage({ path, alt }: { path: string | null; alt: string }) {
   const { data: url } = useSignedUrl(SHOP_BUCKET, path);
-  if (!url) {
-    return (
-      <div className="flex h-32 w-full items-center justify-center rounded-lg bg-muted text-muted-foreground">
-        <ShoppingBag className="h-6 w-6" aria-hidden />
-      </div>
-    );
-  }
   return (
-    <img
-      src={url}
-      alt={alt}
-      loading="lazy"
-      className="h-32 w-full rounded-lg object-cover"
-    />
+    <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted">
+      {url ? (
+        <img src={url} alt={alt} loading="lazy" className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+          <ShoppingBag className="h-7 w-7" aria-hidden />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -134,6 +168,7 @@ export function ShopPage() {
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [open, setOpen] = useState(false);
+  const [picking, setPicking] = useState<Product | null>(null);
 
   const currency = data?.org?.currency ?? "RM";
   const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
@@ -144,49 +179,60 @@ export function ShopPage() {
     const q = search.trim().toLowerCase();
     if (!q) return data?.products ?? [];
     return (data?.products ?? []).filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description ?? "").toLowerCase().includes(q) ||
-        p.product_variants.some((v) => v.name.toLowerCase().includes(q)),
+      (p) => p.name.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q),
     );
   }, [data, search]);
 
-  function addToCart(product: Product, variant: Variant) {
+  function qtyOfProduct(productId: string) {
+    return Object.values(cart)
+      .filter((l) => l.productId === productId)
+      .reduce((sum, l) => sum + l.qty, 0);
+  }
+
+  function addToCart(
+    product: Product,
+    valueIds: string[],
+    label: string,
+    price: number,
+    qty: number,
+  ) {
     setCart((prev) => {
-      const current = prev[variant.id];
-      const usedByOtherVariants = Object.values(prev)
-        .filter((line) => line.productId === product.id && line.variantId !== variant.id)
-        .reduce((sum, line) => sum + line.qty, 0);
-      const qty = Math.min((current?.qty ?? 0) + 1, Math.max(0, product.stock - usedByOtherVariants));
-      if (qty === 0) return prev;
+      const key = lineKey(product.id, valueIds);
+      const used = Object.values(prev)
+        .filter((l) => l.productId === product.id && l.key !== key)
+        .reduce((sum, l) => sum + l.qty, 0);
+      const room = Math.max(0, product.stock - used);
+      const next = Math.min((prev[key]?.qty ?? 0) + qty, room);
+      if (next <= 0) return prev;
       return {
         ...prev,
-        [variant.id]: {
+        [key]: {
+          key,
           productId: product.id,
-          variantId: variant.id,
           productName: product.name,
-          variantName: variant.name,
-          price: variant.price,
+          optionLabel: label,
+          optionValueIds: valueIds,
+          price,
           stock: product.stock,
-          qty,
+          qty: next,
         },
       };
     });
   }
 
-  function setQty(variantId: string, qty: number) {
+  function setQty(key: string, qty: number) {
     setCart((prev) => {
-      const line = prev[variantId];
+      const line = prev[key];
       if (!line) return prev;
-      const usedByOtherVariants = Object.values(prev)
-        .filter((candidate) => candidate.productId === line.productId && candidate.variantId !== variantId)
+      const used = Object.values(prev)
+        .filter((candidate) => candidate.productId === line.productId && candidate.key !== key)
         .reduce((sum, candidate) => sum + candidate.qty, 0);
-      const next = Math.max(0, Math.min(qty, line.stock - usedByOtherVariants));
+      const next = Math.max(0, Math.min(qty, line.stock - used));
       if (next === 0) {
-        const { [variantId]: _removed, ...rest } = prev;
+        const { [key]: _removed, ...rest } = prev;
         return rest;
       }
-      return { ...prev, [variantId]: { ...line, qty: next } };
+      return { ...prev, [key]: { ...line, qty: next } };
     });
   }
 
@@ -198,7 +244,10 @@ export function ShopPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
           {data?.org && !data.org.is_open ? (
-            <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive" role="status">
+            <p
+              className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="status"
+            >
               {t("shop.closed")}
             </p>
           ) : null}
@@ -221,82 +270,56 @@ export function ShopPage() {
           <EmptyState label={t("shop.empty")} />
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((product) => (
-            <Card key={product.id} className="overflow-hidden">
-              <CardContent className="flex flex-col gap-3 p-4">
-                <ProductImage path={product.image_url} alt={product.name} />
-                <div>
-                  <h2 className="text-base font-semibold leading-tight">{product.name}</h2>
-                  {product.description ? (
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                      {product.description}
+        {/* POS-style tiles: picture and name only. Everything else is in the dialog. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {filtered.map((product) => {
+            const soldOut = product.stock <= 0 || qtyOfProduct(product.id) >= product.stock;
+            const inCart = qtyOfProduct(product.id);
+            return (
+              <Card key={product.id} className="overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full text-left transition-colors hover:bg-accent disabled:opacity-60"
+                  disabled={soldOut || !data?.org?.is_open}
+                  onClick={() => setPicking(product)}
+                >
+                  <CardContent className="flex flex-col gap-2 p-3">
+                    <div className="relative">
+                      <ProductImage path={product.image_url} alt={product.name} />
+                      {inCart > 0 ? (
+                        <Badge className="absolute right-1 top-1">{inCart}</Badge>
+                      ) : null}
+                    </div>
+                    <p className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-tight">
+                      {product.name}
                     </p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {product.stock > 0 ? `${product.stock} ${t("shop.left")}` : t("shop.soldOut")}
-                  </p>
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {product.product_variants.map((variant) => {
-                    const inCart = cart[variant.id]?.qty ?? 0;
-                    const productQtyInCart = Object.values(cart)
-                      .filter((line) => line.productId === product.id)
-                      .reduce((sum, line) => sum + line.qty, 0);
-                    const soldOut = product.stock <= 0;
-                    return (
-                      <li
-                        key={variant.id}
-                        className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{variant.name}</p>
-                          <p className="text-xs text-muted-foreground">{money(variant.price, currency)}</p>
-                        </div>
-                        {soldOut ? (
-                          <Badge variant="secondary">{t("shop.soldOut")}</Badge>
-                        ) : inCart > 0 ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-9 w-9"
-                              aria-label="-"
-                              onClick={() => setQty(variant.id, inCart - 1)}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-6 text-center text-sm font-semibold">{inCart}</span>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-9 w-9"
-                              aria-label="+"
-                              disabled={productQtyInCart >= product.stock}
-                              onClick={() => setQty(variant.id, inCart + 1)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="h-9"
-                            disabled={productQtyInCart >= product.stock}
-                            onClick={() => addToCart(product, variant)}
-                          >
-                            {t("shop.add")}
-                          </Button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
+                    {product.stock <= 0 ? (
+                      <Badge variant="secondary" className="w-fit">
+                        {t("shop.soldOut")}
+                      </Badge>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {money(product.base_price, currency)}
+                      </p>
+                    )}
+                  </CardContent>
+                </button>
+              </Card>
+            );
+          })}
         </div>
       </main>
+
+      <ProductDialog
+        product={picking}
+        currency={currency}
+        maxQty={picking ? Math.max(0, picking.stock - qtyOfProduct(picking.id)) : 0}
+        onClose={() => setPicking(null)}
+        onAdd={(valueIds, label, price, qty) => {
+          if (picking) addToCart(picking, valueIds, label, price, qty);
+          setPicking(null);
+        }}
+      />
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur no-print">
         <div className="mx-auto flex max-w-6xl items-center gap-3">
@@ -338,6 +361,180 @@ export function ShopPage() {
   );
 }
 
+/** Tap a product, build it, then add it. Nothing is customised in the grid. */
+function ProductDialog({
+  product,
+  currency,
+  maxQty,
+  onClose,
+  onAdd,
+}: {
+  product: Product | null;
+  currency: string;
+  maxQty: number;
+  onClose: () => void;
+  onAdd: (valueIds: string[], label: string, price: number, qty: number) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Dialog open={Boolean(product)} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{product?.name ?? t("guest.customise")}</DialogTitle>
+        </DialogHeader>
+        {product ? (
+          <ProductForm
+            key={product.id}
+            product={product}
+            currency={currency}
+            maxQty={maxQty}
+            onAdd={onAdd}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProductForm({
+  product,
+  currency,
+  maxQty,
+  onAdd,
+}: {
+  product: Product;
+  currency: string;
+  maxQty: number;
+  onAdd: (valueIds: string[], label: string, price: number, qty: number) => void;
+}) {
+  const { t } = useI18n();
+  const [selected, setSelected] = useState<Record<string, string[]>>(() => {
+    // A required single-choice group starts on its first value, like a POS.
+    const initial: Record<string, string[]> = {};
+    for (const group of product.options) {
+      if (group.is_required && group.max_select === 1 && group.values[0]) {
+        initial[group.id] = [group.values[0].id];
+      } else {
+        initial[group.id] = [];
+      }
+    }
+    return initial;
+  });
+  const [qty, setQty] = useState(1);
+
+  const chosen = product.options.flatMap((g) =>
+    (selected[g.id] ?? [])
+      .map((id) => g.values.find((v) => v.id === id))
+      .filter((v): v is OptionValue => Boolean(v)),
+  );
+  const unitPrice = product.base_price + chosen.reduce((sum, v) => sum + v.price_delta, 0);
+  const missing = product.options.find((g) => g.is_required && (selected[g.id] ?? []).length === 0);
+
+  function toggle(group: OptionGroup, valueId: string) {
+    setSelected((prev) => {
+      const current = prev[group.id] ?? [];
+      if (group.max_select === 1) {
+        const next = current.includes(valueId) && !group.is_required ? [] : [valueId];
+        return { ...prev, [group.id]: next };
+      }
+      if (current.includes(valueId)) {
+        return { ...prev, [group.id]: current.filter((id) => id !== valueId) };
+      }
+      if (current.length >= group.max_select) return prev;
+      return { ...prev, [group.id]: [...current, valueId] };
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {product.description ? (
+        <p className="text-sm text-muted-foreground">{product.description}</p>
+      ) : null}
+
+      {product.options.map((group) => (
+        <fieldset key={group.id} className="grid gap-2">
+          <legend className="mb-1 flex items-center gap-2 text-sm font-semibold">
+            {group.name}
+            {group.is_required ? (
+              <Badge variant="secondary">{t("guest.required")}</Badge>
+            ) : group.max_select > 1 ? (
+              <span className="text-xs font-normal text-muted-foreground">
+                {t("guest.upTo")} {group.max_select}
+              </span>
+            ) : null}
+          </legend>
+          <div className="grid grid-cols-2 gap-2">
+            {group.values.map((value) => {
+              const active = (selected[group.id] ?? []).includes(value.id);
+              return (
+                <Button
+                  key={value.id}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  className="h-auto min-h-11 justify-between gap-2 whitespace-normal px-3 py-2 text-left"
+                  onClick={() => toggle(group, value.id)}
+                >
+                  <span className="min-w-0 text-sm">{value.label}</span>
+                  {value.price_delta !== 0 ? (
+                    <span className="shrink-0 text-xs">
+                      {value.price_delta > 0 ? "+" : "-"}
+                      {money(Math.abs(value.price_delta), currency)}
+                    </span>
+                  ) : null}
+                </Button>
+              );
+            })}
+          </div>
+        </fieldset>
+      ))}
+
+      <div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
+        <span className="text-sm font-medium">{t("common.quantity")}</span>
+        <span className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-10 w-10"
+            aria-label="-"
+            onClick={() => setQty((q) => Math.max(1, q - 1))}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <span className="w-6 text-center font-semibold">{qty}</span>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="h-10 w-10"
+            aria-label="+"
+            disabled={qty >= maxQty}
+            onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </span>
+      </div>
+
+      <Button
+        type="button"
+        className="h-12"
+        disabled={Boolean(missing) || maxQty <= 0}
+        onClick={() =>
+          onAdd(
+            chosen.map((v) => v.id),
+            chosen.map((v) => v.label).join(", ") || "Standard",
+            unitPrice,
+            qty,
+          )
+        }
+      >
+        {t("shop.add")} · {money(unitPrice * qty, currency)}
+      </Button>
+    </div>
+  );
+}
+
 function CheckoutForm({
   orgId,
   currency,
@@ -350,7 +547,7 @@ function CheckoutForm({
   currency: string;
   lines: CartLine[];
   subtotal: number;
-  onQty: (variantId: string, qty: number) => void;
+  onQty: (key: string, qty: number) => void;
   onDone: (token: string) => void;
 }) {
   const { t } = useI18n();
@@ -406,7 +603,7 @@ function CheckoutForm({
       for (const line of productLines) {
         const next = Math.min(line.qty, left);
         left -= next;
-        if (next !== line.qty) onQty(line.variantId, next);
+        if (next !== line.qty) onQty(line.key, next);
       }
       return available === 0
         ? `${t("err.OUT_OF_STOCK")} ${name}`
@@ -435,7 +632,11 @@ function CheckoutForm({
         p_buyer_name: name.trim(),
         p_buyer_age: age ? Number(age) : null,
         p_buyer_class: klass.trim() || null,
-        p_items: lines.map((l) => ({ variant_id: l.variantId, quantity: l.qty })),
+        p_items: lines.map((l) => ({
+          product_id: l.productId,
+          option_value_ids: l.optionValueIds,
+          quantity: l.qty,
+        })),
         p_payment_method: method,
         p_promo_code: promo.trim() || null,
       });
@@ -469,9 +670,10 @@ function CheckoutForm({
     <form className="flex flex-col gap-5 py-4" onSubmit={submit} noValidate>
       <ul className="flex flex-col gap-2">
         {lines.map((l) => (
-          <li key={l.variantId} className="flex items-center justify-between gap-2 text-sm">
+          <li key={l.key} className="flex items-center justify-between gap-2 text-sm">
             <span className="min-w-0 truncate">
-              {l.productName} · {l.variantName}
+              {l.productName}
+              {l.optionLabel && l.optionLabel !== "Standard" ? ` · ${l.optionLabel}` : ""}
             </span>
             <span className="flex items-center gap-1">
               <Button
@@ -480,7 +682,7 @@ function CheckoutForm({
                 variant="outline"
                 className="h-8 w-8"
                 aria-label="-"
-                onClick={() => onQty(l.variantId, l.qty - 1)}
+                onClick={() => onQty(l.key, l.qty - 1)}
               >
                 <Minus className="h-3 w-3" />
               </Button>
@@ -492,11 +694,13 @@ function CheckoutForm({
                 className="h-8 w-8"
                 aria-label="+"
                 disabled={l.qty >= l.stock}
-                onClick={() => onQty(l.variantId, l.qty + 1)}
+                onClick={() => onQty(l.key, l.qty + 1)}
               >
                 <Plus className="h-3 w-3" />
               </Button>
-              <span className="w-16 text-right font-medium">{money(l.price * l.qty, currency)}</span>
+              <span className="w-16 text-right font-medium">
+                {money(l.price * l.qty, currency)}
+              </span>
             </span>
           </li>
         ))}
@@ -511,7 +715,13 @@ function CheckoutForm({
         <legend className="mb-1 text-sm font-semibold">{t("shop.yourDetails")}</legend>
         <div className="grid gap-2">
           <Label htmlFor="buyer-name">{t("shop.buyerName")}</Label>
-          <Input id="buyer-name" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+          <Input
+            id="buyer-name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-11"
+          />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="grid gap-2">
@@ -529,7 +739,12 @@ function CheckoutForm({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="buyer-class">{t("shop.buyerClass")}</Label>
-            <Input id="buyer-class" value={klass} onChange={(e) => setKlass(e.target.value)} className="h-11" />
+            <Input
+              id="buyer-class"
+              value={klass}
+              onChange={(e) => setKlass(e.target.value)}
+              className="h-11"
+            />
           </div>
         </div>
       </fieldset>

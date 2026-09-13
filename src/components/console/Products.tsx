@@ -25,34 +25,51 @@ import { callRpc } from "@/lib/rpc";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, SHOP_BUCKET, fileExtension } from "@/lib/storage";
 import { ImageCropper } from "@/components/ImageCropper";
 
-type VariantForm = {
-  id?: string;
+/**
+ * Option groups are edited entirely in local state and written once, together
+ * with the product. That is what lets a brand new product be customised before
+ * it has ever been saved.
+ */
+type ValueForm = { key: string; label: string; price_delta: string };
+type OptionForm = {
+  key: string;
   name: string;
-  price: string;
-  cost_price: string;
-  is_active: boolean;
+  is_required: boolean;
+  max_select: string;
+  values: ValueForm[];
 };
 type ProductRow = {
   id: string;
   name: string;
   description: string | null;
   image_url: string | null;
+  base_price: number;
+  cost_price: number;
   stock: number;
   is_active: boolean;
-  product_variants: {
+  product_options: {
     id: string;
     name: string;
-    price: number;
-    cost_price: number;
-    is_active: boolean;
+    is_required: boolean;
+    max_select: number;
+    sort_order: number;
+    product_option_values: {
+      id: string;
+      label: string;
+      price_delta: number;
+      sort_order: number;
+    }[];
   }[];
 };
 
-const emptyVariant = (): VariantForm => ({
-  name: "Standard",
-  price: "",
-  cost_price: "0",
-  is_active: true,
+const uid = () => Math.random().toString(36).slice(2, 10);
+const emptyValue = (): ValueForm => ({ key: uid(), label: "", price_delta: "0" });
+const emptyOption = (): OptionForm => ({
+  key: uid(),
+  name: "",
+  is_required: false,
+  max_select: "1",
+  values: [emptyValue()],
 });
 
 export function Products({ orgId, currency }: { orgId: string; currency: string }) {
@@ -67,7 +84,7 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, description, image_url, stock, is_active, product_variants(id, name, price, cost_price, is_active, sort_order)",
+          "id, name, description, image_url, base_price, cost_price, stock, is_active, product_options(id, name, is_required, max_select, sort_order, product_option_values(id, label, price_delta, sort_order))",
         )
         .eq("organization_id", orgId)
         .order("sort_order", { ascending: true });
@@ -108,6 +125,7 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
             </Button>
           </DialogTrigger>
           <ProductDialog
+            key={editing?.id ?? "new"}
             orgId={orgId}
             product={editing}
             onClose={() => {
@@ -131,8 +149,11 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 font-semibold">
                     <span className="truncate">{p.name}</span>
-                    {!p.is_active ? <Badge variant="secondary">{t("common.inactive")}</Badge> : null}
+                    {!p.is_active ? (
+                      <Badge variant="secondary">{t("common.inactive")}</Badge>
+                    ) : null}
                   </p>
+                  <p className="text-sm text-muted-foreground">{money(p.base_price, currency)}</p>
                   {p.description ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">{p.description}</p>
                   ) : null}
@@ -151,7 +172,9 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
                 </Button>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
-                <span className="font-medium">{t("common.stock")}: {p.stock}</span>
+                <span className="font-medium">
+                  {t("common.stock")}: {p.stock}
+                </span>
                 <span className="flex items-center gap-1">
                   <Button
                     size="sm"
@@ -183,10 +206,13 @@ export function Products({ orgId, currency }: { orgId: string; currency: string 
                 </span>
               </div>
               <ul className="flex flex-col gap-2">
-                {p.product_variants.map((v) => (
-                  <li key={v.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate font-medium">{v.name}</span>
-                    <span>{money(v.price, currency)}</span>
+                {p.product_options.map((o) => (
+                  <li key={o.id} className="rounded-lg border px-3 py-2 text-sm">
+                    <span className="font-medium">{o.name}</span>
+                    <span className="text-muted-foreground">
+                      {" · "}
+                      {o.product_option_values.map((v) => v.label).join(", ")}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -212,21 +238,40 @@ function ProductDialog({
   const [description, setDescription] = useState(product?.description ?? "");
   const [isActive, setIsActive] = useState(product?.is_active ?? true);
   const [imagePath, setImagePath] = useState<string | null>(product?.image_url ?? null);
+  const [basePrice, setBasePrice] = useState(String(product?.base_price ?? ""));
+  const [costPrice, setCostPrice] = useState(String(product?.cost_price ?? "0"));
   const [productStock, setProductStock] = useState(String(product?.stock ?? 0));
   const [cropFile, setCropFile] = useState<File | null>(null);
-  const [variants, setVariants] = useState<VariantForm[]>(
-    product?.product_variants.length
-      ? product.product_variants.map((v) => ({
-          id: v.id,
-          name: v.name,
-          price: String(v.price),
-          cost_price: String(v.cost_price),
-          is_active: v.is_active,
-        }))
-      : [emptyVariant()],
+  const [options, setOptions] = useState<OptionForm[]>(
+    (product?.product_options ?? [])
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((o) => ({
+        key: o.id,
+        name: o.name,
+        is_required: o.is_required,
+        max_select: String(o.max_select),
+        values: o.product_option_values
+          .slice()
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((v) => ({ key: v.id, label: v.label, price_delta: String(v.price_delta) })),
+      })),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function patchOption(index: number, patch: Partial<OptionForm>) {
+    setOptions((prev) => prev.map((o, i) => (i === index ? { ...o, ...patch } : o)));
+  }
+  function patchValue(oi: number, vi: number, patch: Partial<ValueForm>) {
+    setOptions((prev) =>
+      prev.map((o, i) =>
+        i === oi
+          ? { ...o, values: o.values.map((v, j) => (j === vi ? { ...v, ...patch } : v)) }
+          : o,
+      ),
+    );
+  }
 
   async function uploadImage(file: File) {
     if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_BYTES) {
@@ -248,67 +293,88 @@ function ProductDialog({
   async function save() {
     setError(null);
     if (name.trim().length < 2) return setError(t("common.required"));
-    const parsed = variants
-      .map((v) => ({
-        ...v,
-        priceNum: Number(v.price),
-        costNum: Number(v.cost_price || 0),
-      }))
-      .filter((v) => v.name.trim() && Number.isFinite(v.priceNum) && v.priceNum >= 0 && v.price !== "");
+    const priceNum = Number(basePrice);
+    const costNum = Number(costPrice || 0);
+    if (basePrice.trim() === "" || !Number.isFinite(priceNum) || priceNum < 0) {
+      return setError(t("prod.needPrice"));
+    }
+    if (!Number.isFinite(costNum) || costNum < 0) return setError(t("prod.needPrice"));
     const stockNum = Math.trunc(Number(productStock));
-    if (!Number.isFinite(stockNum) || stockNum < 0 || productStock.trim() === "") return setError(t("common.required"));
-    if (parsed.length === 0) return setError(t("prod.needVariant"));
+    if (!Number.isFinite(stockNum) || stockNum < 0 || productStock.trim() === "") {
+      return setError(t("common.required"));
+    }
+
+    const groups = options
+      .map((o) => ({
+        ...o,
+        maxNum: Math.max(1, Math.trunc(Number(o.max_select) || 1)),
+        values: o.values.filter((v) => v.label.trim()),
+      }))
+      .filter((o) => o.name.trim() && o.values.length > 0);
+    if (groups.some((g) => g.values.some((v) => !Number.isFinite(Number(v.price_delta || 0))))) {
+      return setError(t("prod.needPrice"));
+    }
 
     setBusy(true);
     try {
       let productId = product?.id;
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || null,
+        image_url: imagePath,
+        base_price: priceNum,
+        cost_price: costNum,
+        stock: stockNum,
+        is_active: isActive,
+      };
       if (productId) {
-        const { error: err } = await supabase
-          .from("products")
-          .update({
-            name: name.trim(),
-            description: description.trim() || null,
-            image_url: imagePath,
-            stock: stockNum,
-            is_active: isActive,
-          })
-          .eq("id", productId);
+        const { error: err } = await supabase.from("products").update(payload).eq("id", productId);
         if (err) throw err;
       } else {
         const { data, error: err } = await supabase
           .from("products")
-          .insert({
-            organization_id: orgId,
-            name: name.trim(),
-            description: description.trim() || null,
-            image_url: imagePath,
-            stock: stockNum,
-            is_active: isActive,
-          })
+          .insert({ organization_id: orgId, ...payload })
           .select("id")
           .single();
         if (err) throw err;
         productId = data.id;
       }
 
-      for (const [index, v] of parsed.entries()) {
-        const payload = {
-          organization_id: orgId,
-          product_id: productId!,
-          name: v.name.trim(),
-          price: v.priceNum,
-          cost_price: v.costNum,
-          is_active: v.is_active,
-          sort_order: index,
-        };
-        if (v.id) {
-          const { error: err } = await supabase.from("product_variants").update(payload).eq("id", v.id);
-          if (err) throw err;
-        } else {
-          const { error: err } = await supabase.from("product_variants").insert(payload);
-          if (err) throw err;
-        }
+      // Rewrite the groups wholesale: simpler than diffing, and past orders keep
+      // their own frozen copy of what was chosen, so nothing historical moves.
+      const { error: delErr } = await supabase
+        .from("product_options")
+        .delete()
+        .eq("product_id", productId!);
+      if (delErr) throw delErr;
+
+      for (const [index, group] of groups.entries()) {
+        const { data: optionRow, error: optErr } = await supabase
+          .from("product_options")
+          .insert({
+            organization_id: orgId,
+            product_id: productId!,
+            name: group.name.trim(),
+            is_required: group.is_required,
+            max_select: group.maxNum,
+            sort_order: index,
+          })
+          .select("id")
+          .single();
+        if (optErr) throw optErr;
+
+        const { error: valErr } = await supabase.from("product_option_values").insert(
+          group.values.map((v, vi) => ({
+            organization_id: orgId,
+            option_id: optionRow.id,
+            label: v.label.trim(),
+            price_delta: Number(v.price_delta || 0),
+            sort_order: vi,
+          })),
+        );
+        if (valErr) throw valErr;
       }
+
       toast.success(t("common.save"));
       onClose();
     } catch (err) {
@@ -326,11 +392,43 @@ function ProductDialog({
       <div className="flex flex-col gap-4">
         <div className="grid gap-2">
           <Label htmlFor="p-name">{t("common.name")}</Label>
-          <Input id="p-name" value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+          <Input
+            id="p-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-11"
+          />
         </div>
         <div className="grid gap-2">
           <Label htmlFor="p-desc">{t("prod.description")}</Label>
-          <Textarea id="p-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+          <Textarea
+            id="p-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2">
+            <Label htmlFor="p-price">{t("prod.basePrice")}</Label>
+            <Input
+              id="p-price"
+              inputMode="decimal"
+              value={basePrice}
+              onChange={(e) => setBasePrice(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="p-cost">{t("prod.cost")}</Label>
+            <Input
+              id="p-cost"
+              inputMode="decimal"
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              className="h-11"
+            />
+          </div>
         </div>
         <div className="grid gap-2">
           <Label htmlFor="p-stock">{t("common.stock")}</Label>
@@ -350,7 +448,7 @@ function ProductDialog({
           <Switch id="p-active" checked={isActive} onCheckedChange={setIsActive} />
         </div>
         <div className="grid gap-2">
-          <Label htmlFor="p-image">{t("set.uploadQr").replace("QR", "image")}</Label>
+          <Label htmlFor="p-image">{t("prod.image")}</Label>
           <Input
             id="p-image"
             type="file"
@@ -358,7 +456,8 @@ function ProductDialog({
             className="h-11"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) setCropFile(file);
+              if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES)
+                setCropFile(file);
               else if (file) setError(t("order.imageOnly"));
             }}
           />
@@ -366,63 +465,113 @@ function ProductDialog({
         </div>
 
         <div className="flex flex-col gap-3">
-          <p className="text-sm font-semibold">{t("prod.variants")}</p>
-          {variants.map((v, i) => (
-            <div key={v.id ?? `new-${i}`} className="grid gap-2 rounded-lg border p-3">
+          <div>
+            <p className="text-sm font-semibold">{t("prod.options")}</p>
+            <p className="text-xs text-muted-foreground">{t("prod.optionsHint")}</p>
+          </div>
+
+          {options.map((option, oi) => (
+            <div key={option.key} className="grid gap-3 rounded-lg border p-3">
               <div className="flex items-center gap-2">
                 <Input
-                  aria-label={t("prod.variantName")}
-                  value={v.name}
-                  placeholder={t("prod.variantName")}
+                  aria-label={t("prod.optionName")}
+                  placeholder={t("prod.optionName")}
+                  value={option.name}
                   className="h-11"
-                  onChange={(e) =>
-                    setVariants((prev) => prev.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))
-                  }
+                  onChange={(e) => patchOption(oi, { name: e.target.value })}
                 />
-                {variants.length > 1 ? (
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-11 w-11 shrink-0"
-                    aria-label={t("common.delete")}
-                    onClick={() => setVariants((prev) => prev.filter((_, xi) => xi !== i))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                ) : null}
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-11 w-11 shrink-0"
+                  aria-label={t("common.delete")}
+                  onClick={() => setOptions((prev) => prev.filter((_, i) => i !== oi))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  aria-label={t("common.price")}
-                  placeholder={t("common.price")}
-                  inputMode="decimal"
-                  value={v.price}
-                  className="h-11"
-                  onChange={(e) =>
-                    setVariants((prev) => prev.map((x, xi) => (xi === i ? { ...x, price: e.target.value } : x)))
-                  }
-                />
-                <Input
-                  aria-label={t("prod.cost")}
-                  placeholder={t("prod.cost")}
-                  inputMode="decimal"
-                  value={v.cost_price}
-                  className="h-11"
-                  onChange={(e) =>
-                    setVariants((prev) => prev.map((x, xi) => (xi === i ? { ...x, cost_price: e.target.value } : x)))
-                  }
-                />
+
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={option.is_required}
+                    onCheckedChange={(v) => patchOption(oi, { is_required: v })}
+                  />
+                  {t("prod.required")}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  {t("prod.maxSelect")}
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={option.max_select}
+                    className="h-10 w-20"
+                    onChange={(e) => patchOption(oi, { max_select: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-2">
+                {option.values.map((value, vi) => (
+                  <div key={value.key} className="flex items-center gap-2">
+                    <Input
+                      aria-label={t("prod.choice")}
+                      placeholder={t("prod.choice")}
+                      value={value.label}
+                      className="h-11"
+                      onChange={(e) => patchValue(oi, vi, { label: e.target.value })}
+                    />
+                    <Input
+                      aria-label={t("prod.priceDelta")}
+                      placeholder={t("prod.priceDelta")}
+                      inputMode="decimal"
+                      value={value.price_delta}
+                      className="h-11 w-28"
+                      onChange={(e) => patchValue(oi, vi, { price_delta: e.target.value })}
+                    />
+                    {option.values.length > 1 ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-11 w-11 shrink-0"
+                        aria-label={t("common.delete")}
+                        onClick={() =>
+                          patchOption(oi, { values: option.values.filter((_, j) => j !== vi) })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+                <Button
+                  variant="ghost"
+                  className="h-10 justify-start"
+                  onClick={() => patchOption(oi, { values: [...option.values, emptyValue()] })}
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  {t("prod.addChoice")}
+                </Button>
               </div>
             </div>
           ))}
-          <Button variant="outline" className="h-11" onClick={() => setVariants((p) => [...p, emptyVariant()])}>
+
+          <Button
+            variant="outline"
+            className="h-11"
+            onClick={() => setOptions((p) => [...p, emptyOption()])}
+          >
             <Plus className="mr-1 h-4 w-4" />
-            {t("prod.addVariant")}
+            {t("prod.addOption")}
           </Button>
         </div>
 
         {error ? (
-          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          <p
+            className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
@@ -434,6 +583,7 @@ function ProductDialog({
       </DialogFooter>
       <ImageCropper
         file={cropFile}
+        aspect={1}
         onCancel={() => setCropFile(null)}
         onComplete={(cropped) => {
           setCropFile(null);

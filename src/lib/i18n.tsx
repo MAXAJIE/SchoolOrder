@@ -27,6 +27,98 @@ const dict = {
     zh: "在线下单、付款，用取货码取饮料。",
     ms: "Pesan minuman, bayar dan ambil dengan kod anda.",
   },
+  "landing.heroTitle": {
+    en: "Your school shop, one tap away.",
+    zh: "你的学校商店，一键搞定。",
+    ms: "Kedai sekolah anda, satu ketik sahaja.",
+  },
+  "landing.heroBody": {
+    en: "Buyers order without an account and get a pickup code. Owners run products, stock, payments and orders in one place.",
+    zh: "买家无需注册即可下单并获得取货码。店主可在一处管理产品、库存、付款与订单。",
+    ms: "Pembeli memesan tanpa akaun dan menerima kod ambilan. Pemilik menguruskan produk, stok, bayaran dan pesanan di satu tempat.",
+  },
+  "landing.guestCta": { en: "Order now", zh: "立即下单", ms: "Pesan sekarang" },
+  "landing.ownerCta": { en: "Owner console", zh: "店主后台", ms: "Konsol pemilik" },
+  "landing.guestTitle": { en: "For buyers", zh: "买家专区", ms: "Untuk pembeli" },
+  "landing.guestBody": {
+    en: "Tap a product, choose your options, pay by cash or DuitNow QR, then show your pickup code.",
+    zh: "点选产品、选择配料、用现金或 DuitNow QR 付款，然后出示取货码。",
+    ms: "Ketik produk, pilih pilihan anda, bayar tunai atau DuitNow QR, kemudian tunjukkan kod ambilan.",
+  },
+  "landing.ownerTitle": { en: "For the shop owner", zh: "店主专区", ms: "Untuk pemilik kedai" },
+  "landing.ownerBody": {
+    en: "Sign in to manage products and options, track stock, confirm payments and review order history.",
+    zh: "登录后可管理产品与选项、追踪库存、确认付款并查看订单历史。",
+    ms: "Log masuk untuk mengurus produk dan pilihan, menjejak stok, mengesahkan bayaran dan melihat sejarah pesanan.",
+  },
+  "landing.f1Title": { en: "Pay your way", zh: "多种付款", ms: "Bayar ikut cara anda" },
+  "landing.f1Body": {
+    en: "Cash at the counter or DuitNow QR with the receipt attached at checkout.",
+    zh: "柜台现金，或在结账时用 DuitNow QR 并上传收据。",
+    ms: "Tunai di kaunter atau DuitNow QR dengan resit dilampirkan semasa pembayaran.",
+  },
+  "landing.f2Title": {
+    en: "No queue, no account",
+    zh: "免排队免注册",
+    ms: "Tiada giliran, tiada akaun",
+  },
+  "landing.f2Body": {
+    en: "Order in seconds and keep the link to check your status any time.",
+    zh: "几秒下单，保存链接随时查看状态。",
+    ms: "Pesan dalam beberapa saat dan simpan pautan untuk menyemak status bila-bila masa.",
+  },
+  "landing.f3Title": { en: "Stock stays honest", zh: "库存准确", ms: "Stok sentiasa tepat" },
+  "landing.f3Body": {
+    en: "Stock moves with every order, and cancelled orders never count as sales.",
+    zh: "每笔订单都会更新库存，已取消的订单不会计入销售。",
+    ms: "Stok berubah dengan setiap pesanan, dan pesanan dibatalkan tidak dikira sebagai jualan.",
+  },
+  "guest.customise": { en: "Customise", zh: "自定义", ms: "Sesuaikan" },
+  "guest.required": { en: "Choose one", zh: "必选一项", ms: "Pilih satu" },
+  "guest.upTo": { en: "Choose up to {n}", zh: "最多选 {n} 项", ms: "Pilih sehingga {n}" },
+  "image.fitNote": {
+    en: "The picture is saved exactly as shown here, so nothing is cut off or stretched.",
+    zh: "图片将按此处显示保存，不会被裁切或拉伸。",
+    ms: "Gambar disimpan tepat seperti yang dipaparkan, tiada bahagian terpotong atau meleret.",
+  },
+  "ord.active": { en: "Active", zh: "进行中", ms: "Aktif" },
+  "ord.history": { en: "Order history", zh: "订单历史", ms: "Sejarah pesanan" },
+  "ord.historyEmpty": {
+    en: "No finished orders yet.",
+    zh: "还没有已完成的订单。",
+    ms: "Tiada pesanan selesai lagi.",
+  },
+  "ord.backToActive": { en: "Back to active", zh: "返回进行中", ms: "Kembali ke aktif" },
+  "ord.cancelledNote": {
+    en: "Cancelled — not counted in sales or reports.",
+    zh: "已取消——不计入销售与报表。",
+    ms: "Dibatalkan — tidak dikira dalam jualan atau laporan.",
+  },
+  "order.payAtCounter": {
+    en: "Show this screen when you pay.",
+    zh: "付款时请出示此页面。",
+    ms: "Tunjukkan skrin ini semasa membayar.",
+  },
+  "prod.basePrice": { en: "Base price", zh: "基础价格", ms: "Harga asas" },
+  "prod.image": { en: "Product photo", zh: "产品图片", ms: "Foto produk" },
+  "prod.options": { en: "Options", zh: "选项", ms: "Pilihan" },
+  "prod.optionsHint": {
+    en: "Add option groups such as Size or Sugar level. Each choice can add to the price.",
+    zh: "添加选项组，例如份量或糖度。每个选择都可加价。",
+    ms: "Tambah kumpulan pilihan seperti Saiz atau Paras gula. Setiap pilihan boleh menambah harga.",
+  },
+  "prod.addOption": { en: "Add option group", zh: "添加选项组", ms: "Tambah kumpulan pilihan" },
+  "prod.optionName": { en: "Option name", zh: "选项名称", ms: "Nama pilihan" },
+  "prod.addChoice": { en: "Add choice", zh: "添加选择", ms: "Tambah pilihan" },
+  "prod.choice": { en: "Choice", zh: "选择", ms: "Pilihan" },
+  "prod.priceDelta": { en: "Extra price", zh: "加价", ms: "Harga tambahan" },
+  "prod.maxSelect": { en: "Max choices", zh: "最多可选", ms: "Pilihan maksimum" },
+  "prod.required": { en: "Required", zh: "必选", ms: "Wajib" },
+  "prod.needPrice": {
+    en: "Enter a base price.",
+    zh: "请输入基础价格。",
+    ms: "Masukkan harga asas.",
+  },
   "nav.shop": { en: "Shop", zh: "商店", ms: "Kedai" },
   "nav.signin": { en: "Sign in", zh: "登录", ms: "Log masuk" },
   "nav.signout": { en: "Sign out", zh: "登出", ms: "Log keluar" },
@@ -78,7 +170,11 @@ const dict = {
   "image.zoom": { en: "Zoom", zh: "缩放", ms: "Zum" },
   "image.horizontal": { en: "Horizontal position", zh: "水平位置", ms: "Kedudukan mendatar" },
   "image.vertical": { en: "Vertical position", zh: "垂直位置", ms: "Kedudukan menegak" },
-  "image.useCrop": { en: "Use cropped image", zh: "使用裁剪后的图片", ms: "Guna imej yang dipangkas" },
+  "image.useCrop": {
+    en: "Use cropped image",
+    zh: "使用裁剪后的图片",
+    ms: "Guna imej yang dipangkas",
+  },
 
   "shop.closed": {
     en: "The shop is closed right now.",
@@ -166,7 +262,11 @@ const dict = {
     zh: "找不到订单，请检查链接。",
     ms: "Pesanan tidak dijumpai. Semak pautan anda.",
   },
-  "order.uploadProof": { en: "Upload payment proof", zh: "上传付款凭证", ms: "Muat naik bukti bayaran" },
+  "order.uploadProof": {
+    en: "Upload payment proof",
+    zh: "上传付款凭证",
+    ms: "Muat naik bukti bayaran",
+  },
   "order.proofUploaded": {
     en: "Payment proof received. Waiting for verification.",
     zh: "已收到付款凭证，等待核实。",
@@ -199,12 +299,20 @@ const dict = {
   "pay.paid": { en: "Paid", zh: "已付款", ms: "Sudah bayar" },
   "pay.rejected": { en: "Proof rejected", zh: "凭证被拒", ms: "Bukti ditolak" },
 
-  "auth.title": { en: "Sign in to SchoolOrder", zh: "登录 SchoolOrder", ms: "Log masuk SchoolOrder" },
+  "auth.title": {
+    en: "Sign in to SchoolOrder",
+    zh: "登录 SchoolOrder",
+    ms: "Log masuk SchoolOrder",
+  },
   "auth.email": { en: "Email", zh: "邮箱", ms: "E-mel" },
   "auth.password": { en: "Password", zh: "密码", ms: "Kata laluan" },
   "auth.signin": { en: "Sign in", zh: "登录", ms: "Log masuk" },
   "auth.signup": { en: "Create account", zh: "注册", ms: "Daftar akaun" },
-  "auth.google": { en: "Continue with Google", zh: "使用 Google 登录", ms: "Teruskan dengan Google" },
+  "auth.google": {
+    en: "Continue with Google",
+    zh: "使用 Google 登录",
+    ms: "Teruskan dengan Google",
+  },
   "auth.callbackWait": { en: "Signing you in…", zh: "正在登录…", ms: "Sedang log masuk…" },
   "auth.callbackFailed": {
     en: "We could not complete the sign in. Please try again.",
@@ -308,7 +416,11 @@ const dict = {
     ms: "Peraturan: dalam satu produk, setiap unit ke-2 mendapat diskaun.",
   },
 
-  "dealer.invite": { en: "Add dealer by user ID", zh: "通过用户 ID 添加经销商", ms: "Tambah pengedar melalui ID" },
+  "dealer.invite": {
+    en: "Add dealer by user ID",
+    zh: "通过用户 ID 添加经销商",
+    ms: "Tambah pengedar melalui ID",
+  },
   "dealer.userId": { en: "Dealer user ID", zh: "经销商用户 ID", ms: "ID pengguna pengedar" },
   "dealer.userIdHint": {
     en: "The dealer signs up first, then copies their user ID from Settings.",
@@ -342,21 +454,37 @@ const dict = {
 
   "err.OUT_OF_STOCK": { en: "Out of stock:", zh: "库存不足：", ms: "Kehabisan stok:" },
   "err.SHOP_CLOSED": { en: "The shop is closed.", zh: "商店已关闭。", ms: "Kedai ditutup." },
-  "err.PROMO_INVALID": { en: "Promo code is not valid.", zh: "优惠码无效。", ms: "Kod promosi tidak sah." },
-  "err.PROMO_EXPIRED": { en: "Promo code has expired.", zh: "优惠码已过期。", ms: "Kod promosi tamat tempoh." },
+  "err.PROMO_INVALID": {
+    en: "Promo code is not valid.",
+    zh: "优惠码无效。",
+    ms: "Kod promosi tidak sah.",
+  },
+  "err.PROMO_EXPIRED": {
+    en: "Promo code has expired.",
+    zh: "优惠码已过期。",
+    ms: "Kod promosi tamat tempoh.",
+  },
   "err.PROMO_NOT_STARTED": {
     en: "Promo code is not active yet.",
     zh: "优惠码尚未开始。",
     ms: "Kod promosi belum bermula.",
   },
-  "err.PROMO_USED_UP": { en: "Promo code is used up.", zh: "优惠码已用完。", ms: "Kod promosi telah habis." },
+  "err.PROMO_USED_UP": {
+    en: "Promo code is used up.",
+    zh: "优惠码已用完。",
+    ms: "Kod promosi telah habis.",
+  },
   "err.PROMO_MIN_AMOUNT": {
     en: "Order is below the promo minimum.",
     zh: "订单金额低于优惠码门槛。",
     ms: "Pesanan di bawah minimum promosi.",
   },
   "err.EMPTY_CART": { en: "Your cart is empty.", zh: "购物车是空的。", ms: "Troli anda kosong." },
-  "err.INVALID_NAME": { en: "Please enter your name.", zh: "请输入姓名。", ms: "Sila masukkan nama anda." },
+  "err.INVALID_NAME": {
+    en: "Please enter your name.",
+    zh: "请输入姓名。",
+    ms: "Sila masukkan nama anda.",
+  },
   "err.INVALID_AGE": {
     en: "Please enter an age between 5 and 100.",
     zh: "请输入 5 至 100 之间的年龄。",
@@ -372,9 +500,21 @@ const dict = {
     zh: "某个产品已下架。",
     ms: "Satu produk tidak lagi dijual.",
   },
-  "err.PRODUCT_NOT_FOUND": { en: "Product not found.", zh: "找不到产品。", ms: "Produk tidak dijumpai." },
-  "err.NEGATIVE_STOCK": { en: "Stock cannot go below zero.", zh: "库存不能为负。", ms: "Stok tidak boleh negatif." },
-  "err.FORBIDDEN": { en: "You are not allowed to do that.", zh: "你没有权限执行此操作。", ms: "Anda tiada kebenaran." },
+  "err.PRODUCT_NOT_FOUND": {
+    en: "Product not found.",
+    zh: "找不到产品。",
+    ms: "Produk tidak dijumpai.",
+  },
+  "err.NEGATIVE_STOCK": {
+    en: "Stock cannot go below zero.",
+    zh: "库存不能为负。",
+    ms: "Stok tidak boleh negatif.",
+  },
+  "err.FORBIDDEN": {
+    en: "You are not allowed to do that.",
+    zh: "你没有权限执行此操作。",
+    ms: "Anda tiada kebenaran.",
+  },
 } as const;
 
 export type TKey = keyof typeof dict;
