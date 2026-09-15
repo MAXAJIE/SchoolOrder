@@ -529,6 +529,66 @@ const dict = {
     zh: "你没有权限执行此操作。",
     ms: "Anda tiada kebenaran.",
   },
+  "shop.codeTitle": {
+    en: "Enter your shop code",
+    zh: "请输入商店代码",
+    ms: "Masukkan kod kedai anda",
+  },
+  "shop.codeBody": {
+    en: "Every shop has its own code. Ask the shop for it, or scan their QR code or link.",
+    zh: "每家商店都有专属代码。请向店家索取，或扫描他们的二维码或链接。",
+    ms: "Setiap kedai mempunyai kodnya sendiri. Minta daripada kedai, atau imbas kod QR atau pautan mereka.",
+  },
+  "shop.codeLabel": { en: "Shop code", zh: "商店代码", ms: "Kod kedai" },
+  "shop.codeContinue": { en: "Open shop", zh: "进入商店", ms: "Buka kedai" },
+  "shop.codeInvalid": {
+    en: "We could not find a shop with that code. Check the code and try again.",
+    zh: "找不到该代码对应的商店，请检查后重试。",
+    ms: "Kami tidak menemui kedai dengan kod itu. Semak kod dan cuba lagi.",
+  },
+  "console.activationTitle": {
+    en: "Activate your shop",
+    zh: "激活你的商店",
+    ms: "Aktifkan kedai anda",
+  },
+  "console.activationBody": {
+    en: "Opening a shop needs an activation code from the school. Enter it to continue.",
+    zh: "开设商店需要学校提供的激活码，请输入后继续。",
+    ms: "Membuka kedai memerlukan kod pengaktifan daripada pihak sekolah. Masukkannya untuk teruskan.",
+  },
+  "console.activationCode": { en: "Activation code", zh: "激活码", ms: "Kod pengaktifan" },
+  "console.activationContinue": { en: "Continue", zh: "继续", ms: "Teruskan" },
+  "set.shopCode": { en: "Shop code", zh: "商店代码", ms: "Kod kedai" },
+  "set.shopCodeHint": {
+    en: "Buyers need this code, or the link below, to open your shop.",
+    zh: "买家需要此代码或下方链接才能进入你的商店。",
+    ms: "Pembeli memerlukan kod ini, atau pautan di bawah, untuk membuka kedai anda.",
+  },
+  "err.INVALID_ACTIVATION_CODE": {
+    en: "That activation code is not valid or has already been used.",
+    zh: "激活码无效或已被使用。",
+    ms: "Kod pengaktifan itu tidak sah atau telah digunakan.",
+  },
+  "err.ALREADY_HAS_SHOP": {
+    en: "This account already belongs to a shop.",
+    zh: "此账号已属于一家商店。",
+    ms: "Akaun ini sudah tergolong dalam sebuah kedai.",
+  },
+  "err.SHOP_NOT_FOUND": {
+    en: "We could not find a shop with that code.",
+    zh: "找不到该代码对应的商店。",
+    ms: "Kami tidak menemui kedai dengan kod itu.",
+  },
+  "err.SHOP_UNAVAILABLE": {
+    en: "This shop is no longer available.",
+    zh: "该商店已不可用。",
+    ms: "Kedai ini tidak lagi tersedia.",
+  },
+  "err.NOT_AUTHENTICATED": {
+    en: "Please sign in again.",
+    zh: "请重新登录。",
+    ms: "Sila log masuk semula.",
+  },
 } as const;
 
 export type TKey = keyof typeof dict;

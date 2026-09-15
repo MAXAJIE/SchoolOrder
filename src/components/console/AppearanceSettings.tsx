@@ -23,8 +23,8 @@ export function AppearanceSettings({
   initialButtonColor,
 }: {
   orgId: string;
-  initialTheme?: string | null;
-  initialButtonColor?: string | null;
+  initialTheme?: string | null | undefined;
+  initialButtonColor?: string | null | undefined;
 }) {
   const { t } = useI18n();
   const qc = useQueryClient();

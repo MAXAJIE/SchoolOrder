@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ImagePlus, Minus, Plus, Search, ShoppingBag, Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SiteHeader } from "@/components/SiteHeader";
-import { LoadingState, EmptyState, ErrorState } from "@/components/States";
+import { LoadingState, EmptyState } from "@/components/States";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +28,8 @@ import {
   fileExtension,
   useSignedUrl,
 } from "@/lib/storage";
-import { DEFAULT_SHOP_THEME, isShopTheme, shopThemeStyle } from "@/lib/shop-theme";
+import { safeShopTheme, shopThemeStyle } from "@/lib/shop-theme";
+import { isValidShopCode, normalizeShopCode } from "@/lib/shop-code";
 
 type OptionValue = {
   id: string;
@@ -73,18 +74,28 @@ function lineKey(productId: string, valueIds: string[]) {
   return `${productId}::${[...valueIds].sort().join(",")}`;
 }
 
-function useShopData() {
+type Shop = {
+  id: string;
+  name: string;
+  shop_code: string;
+  currency: string;
+  is_open: boolean;
+  public_theme: string | null;
+  button_color: string | null;
+};
+
+/**
+ * A buyer always reaches one specific shop through that shop's own code.
+ * Resolving the shop server-side means a shop whose owner account is gone
+ * simply cannot be found, so no one can keep ordering from a dead shop.
+ */
+function useShopData(code: string) {
   return useQuery({
-    queryKey: ["shop"],
+    queryKey: ["shop", code],
+    enabled: isValidShopCode(code),
+    retry: false,
     queryFn: async () => {
-      const { data: org, error: orgErr } = await supabase
-        .from("organizations")
-        .select("id, name, currency, is_open, public_theme, button_color")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (orgErr) throw orgErr;
-      if (!org) return { org: null, products: [] as Product[] };
+      const org = await callRpc<Shop>("get_shop_by_code", { p_code: code });
 
       const { data: products, error: prodErr } = await supabase
         .from("products")
@@ -121,6 +132,54 @@ function useShopData() {
       return { org, products: cleaned };
     },
   });
+}
+
+/** Shown until a buyer has a usable shop code, and when a code is unknown. */
+function ShopCodeGate({ initial, invalid }: { initial: string; invalid: boolean }) {
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  const [value, setValue] = useState(initial);
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const code = normalizeShopCode(value);
+    if (!isValidShopCode(code)) return;
+    void navigate({ to: "/guest", search: { code } });
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <SiteHeader />
+      <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-12">
+        <h1 className="font-display text-2xl font-bold">{t("shop.codeTitle")}</h1>
+        <p className="text-sm text-muted-foreground">{t("shop.codeBody")}</p>
+        <form className="grid gap-3" onSubmit={submit}>
+          <Label htmlFor="shop-code">{t("shop.codeLabel")}</Label>
+          <Input
+            id="shop-code"
+            value={value}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={16}
+            className="h-12 font-mono text-lg uppercase tracking-[0.2em]"
+            onChange={(e) => setValue(e.target.value.toUpperCase())}
+          />
+          {invalid ? (
+            <p
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              {t("shop.codeInvalid")}
+            </p>
+          ) : null}
+          <Button type="submit" className="h-12" disabled={!isValidShopCode(value)}>
+            {t("shop.codeContinue")}
+          </Button>
+        </form>
+      </main>
+    </div>
+  );
 }
 
 /** Active DuitNow QR for this shop only. Never fall back to another shop's QR. */
@@ -165,16 +224,15 @@ function ProductImage({ path, alt }: { path: string | null; alt: string }) {
 export function ShopPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { data, isLoading, isError, refetch } = useShopData();
+  const { code } = useSearch({ from: "/guest" });
+  const { data, isLoading, isError } = useShopData(code);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [open, setOpen] = useState(false);
   const [picking, setPicking] = useState<Product | null>(null);
 
   const currency = data?.org?.currency ?? "RM";
-  const publicTheme = data?.org?.public_theme && isShopTheme(data.org.public_theme)
-    ? data.org.public_theme
-    : DEFAULT_SHOP_THEME;
+  const publicTheme = safeShopTheme(data?.org?.public_theme);
   const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
   const count = lines.reduce((sum, l) => sum + l.qty, 0);
@@ -240,6 +298,12 @@ export function ShopPage() {
     });
   }
 
+  // An unusable or unknown code never shows a shop: the buyer is asked for a
+  // code instead, so a removed shop cannot be ordered from by an old link.
+  if (!isValidShopCode(code) || isError) {
+    return <ShopCodeGate initial={code} invalid={isValidShopCode(code) && isError} />;
+  }
+
   return (
     <div
       className={`shop-theme shop-theme-${publicTheme} min-h-screen bg-background pb-24`}
@@ -272,10 +336,7 @@ export function ShopPage() {
         </div>
 
         {isLoading ? <LoadingState /> : null}
-        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
-        {!isLoading && !isError && filtered.length === 0 ? (
-          <EmptyState label={t("shop.empty")} />
-        ) : null}
+        {!isLoading && filtered.length === 0 ? <EmptyState label={t("shop.empty")} /> : null}
 
         {/* POS-style tiles: picture and name only. Everything else is in the dialog. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

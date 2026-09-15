@@ -350,7 +350,8 @@ export type Database = {
           id: string
           is_open: boolean
           name: string
-          owner_id: string
+          owner_id: string | null
+          shop_code: string
         }
         Insert: {
           button_color?: string
@@ -360,7 +361,8 @@ export type Database = {
           id?: string
           is_open?: boolean
           name: string
-          owner_id: string
+          owner_id?: string | null
+          shop_code?: string
         }
         Update: {
           button_color?: string
@@ -370,7 +372,8 @@ export type Database = {
           id?: string
           is_open?: boolean
           name?: string
-          owner_id?: string
+          owner_id?: string | null
+          shop_code?: string
         }
         Relationships: []
       }
@@ -791,6 +794,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_shop_with_code: {
+        Args: { p_code: string; p_name: string }
+        Returns: Json
+      }
+      get_shop_by_code: { Args: { p_code: string }; Returns: Json }
+      shop_is_live: { Args: { _org: string }; Returns: boolean }
+      verify_shop_activation_code: { Args: { p_code: string }; Returns: boolean }
       update_shop_appearance: {
         Args: { p_button_color: string; p_org: string; p_theme: string }
         Returns: undefined

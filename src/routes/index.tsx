@@ -51,7 +51,7 @@ function Landing() {
           </p>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="h-12">
-              <Link to="/guest">
+              <Link to="/guest" search={{ code: "" }}>
                 <ShoppingBag className="mr-2 h-4 w-4" />
                 {t("landing.guestCta")}
               </Link>
@@ -83,7 +83,9 @@ function Landing() {
               <h2 className="text-lg font-bold">{t("landing.guestTitle")}</h2>
               <p className="text-sm text-muted-foreground">{t("landing.guestBody")}</p>
               <Button asChild variant="secondary" className="mt-2 h-11 w-full sm:w-auto">
-                <Link to="/guest">{t("landing.guestCta")}</Link>
+                <Link to="/guest" search={{ code: "" }}>
+                  {t("landing.guestCta")}
+                </Link>
               </Button>
             </CardContent>
           </Card>

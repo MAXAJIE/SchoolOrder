@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
 import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
 import { OrderStatusBanner } from "@/components/OrderStatus";
+import { shopSurface } from "@/lib/shop-theme";
 
 export const Route = createFileRoute("/order/$token")({
   head: () => ({
@@ -37,6 +38,9 @@ type OrderView = {
   organization_id: string;
   organization_name: string;
   currency: string;
+  shop_code: string | null;
+  public_theme: string | null;
+  button_color: string | null;
   order_number: string;
   pickup_code: string;
   buyer_name: string;
@@ -87,8 +91,12 @@ function OrderPage() {
   });
   const { data: qrUrl } = useSignedUrl(SHOP_BUCKET, qrQuery.data?.image_url ?? null);
 
+  // The receipt belongs to the storefront, so it wears the shop's colours too:
+  // print, copy and upload buttons match the shop the buyer ordered from.
+  const surface = shopSurface(order?.public_theme, order?.button_color);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`${surface.className} min-h-screen bg-background`} style={surface.style}>
       <SiteHeader subtitle={order?.organization_name} />
       <main className="mx-auto max-w-5xl px-4 py-6">
         {orderQuery.isLoading ? <LoadingState /> : null}
@@ -98,104 +106,107 @@ function OrderPage() {
           <div className="grid items-start gap-4 lg:grid-cols-[0.8fr_1.2fr]">
             <div className="grid gap-4 lg:sticky lg:top-6">
               <OrderStatusBanner status={order.status} paymentStatus={order.payment_status} />
-            <Card>
-              <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
-                <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
-                <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
-                <p className="font-display text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
-                <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
-                <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
-                    <Printer className="mr-1 h-4 w-4" />
-                    {t("common.print")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(window.location.href);
-                      toast.success(t("common.copied"));
-                    }}
-                  >
-                    <Copy className="mr-1 h-4 w-4" />
-                    {t("common.copy")}
-                  </Button>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
+                  <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
+                  <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
+                  <p className="font-display text-4xl font-extrabold tracking-[0.2em]">
+                    {order.pickup_code}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
+                  <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
+                    <Button variant="outline" size="sm" onClick={() => window.print()}>
+                      <Printer className="mr-1 h-4 w-4" />
+                      {t("common.print")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(window.location.href);
+                        toast.success(t("common.copied"));
+                      }}
+                    >
+                      <Copy className="mr-1 h-4 w-4" />
+                      {t("common.copy")}
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
+                </CardContent>
+              </Card>
             </div>
 
             <div className="grid gap-4">
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-                <CardTitle className="text-base">{order.order_number}</CardTitle>
-
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 text-sm">
-                <p className="text-muted-foreground">
-                  {order.buyer_name}
-                  {order.buyer_class ? ` · ${order.buyer_class}` : ""} ·{" "}
-                  {dateTime(order.created_at)}
-                </p>
-                <Separator />
-                <ul className="flex flex-col gap-2">
-                  {order.items.map((item, i) => (
-                    <li key={`${item.product_name}-${i}`} className="flex justify-between gap-2">
-                      <span className="min-w-0">
-                        {item.product_name} · {item.variant_name} × {item.quantity}
-                      </span>
-                      <span className="font-medium">{money(item.line_total, order.currency)}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Separator />
-                <div className="flex justify-between">
-                  <span>{t("common.subtotal")}</span>
-                  <span>{money(order.subtotal, order.currency)}</span>
-                </div>
-                {Number(order.discount) > 0 ? (
-                  <div className="flex justify-between text-primary">
-                    <span>{t("common.discount")}</span>
-                    <span>-{money(order.discount, order.currency)}</span>
-                  </div>
-                ) : null}
-                <div className="flex justify-between text-base font-bold">
-                  <span>{t("common.total")}</span>
-                  <span>{money(order.total, order.currency)}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {order.payment_method === "duitnow" && order.status !== "cancelled" ? (
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">{t("order.payNow")}</CardTitle>
+                <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+                  <CardTitle className="text-base">{order.order_number}</CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
-                  {qrUrl ? (
-                    <img
-                      src={qrUrl}
-                      alt={qrQuery.data?.label ?? "DuitNow QR"}
-                      className="max-h-64 rounded-lg border"
-                    />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t("shop.duitnowNote")}</p>
-                  )}
-                  {order.has_proof ? (
-                    <p className="text-sm text-muted-foreground">{t("order.proofUploaded")}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t("order.payAtCounter")}</p>
-                  )}
+                <CardContent className="flex flex-col gap-3 text-sm">
+                  <p className="text-muted-foreground">
+                    {order.buyer_name}
+                    {order.buyer_class ? ` · ${order.buyer_class}` : ""} ·{" "}
+                    {dateTime(order.created_at)}
+                  </p>
+                  <Separator />
+                  <ul className="flex flex-col gap-2">
+                    {order.items.map((item, i) => (
+                      <li key={`${item.product_name}-${i}`} className="flex justify-between gap-2">
+                        <span className="min-w-0">
+                          {item.product_name} · {item.variant_name} × {item.quantity}
+                        </span>
+                        <span className="font-medium">
+                          {money(item.line_total, order.currency)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span>{t("common.subtotal")}</span>
+                    <span>{money(order.subtotal, order.currency)}</span>
+                  </div>
+                  {Number(order.discount) > 0 ? (
+                    <div className="flex justify-between text-primary">
+                      <span>{t("common.discount")}</span>
+                      <span>-{money(order.discount, order.currency)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between text-base font-bold">
+                    <span>{t("common.total")}</span>
+                    <span>{money(order.total, order.currency)}</span>
+                  </div>
                 </CardContent>
               </Card>
-            ) : null}
 
-            {order.payment_method === "cash" ? (
-              <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
-                {t("shop.cashNote")}
-              </p>
-            ) : null}
+              {order.payment_method === "duitnow" && order.status !== "cancelled" ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">{t("order.payNow")}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col items-center gap-4">
+                    {qrUrl ? (
+                      <img
+                        src={qrUrl}
+                        alt={qrQuery.data?.label ?? "DuitNow QR"}
+                        className="max-h-64 rounded-lg border"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{t("shop.duitnowNote")}</p>
+                    )}
+                    {order.has_proof ? (
+                      <p className="text-sm text-muted-foreground">{t("order.proofUploaded")}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{t("order.payAtCounter")}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {order.payment_method === "cash" ? (
+                <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+                  {t("shop.cashNote")}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : null}

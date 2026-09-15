@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useI18n, translateError } from "@/lib/i18n";
+import { shopLinkFor } from "@/lib/shop-code";
 import { useAuth } from "@/lib/auth";
 import { ImageCropper } from "@/components/ImageCropper";
 import { AppearanceSettings } from "@/components/console/AppearanceSettings";
@@ -23,6 +24,7 @@ import {
 export function Settings({
   orgId,
   name,
+  shopCode,
   currency,
   isOpen,
   publicTheme,
@@ -30,6 +32,7 @@ export function Settings({
 }: {
   orgId: string;
   name: string;
+  shopCode: string;
   currency: string;
   isOpen: boolean;
   publicTheme?: string | null;
@@ -105,7 +108,8 @@ export function Settings({
     }
   }
 
-  const shopLink = typeof window === "undefined" ? "" : window.location.origin;
+  // The link carries the shop code, so it always opens this shop and no other.
+  const shopLink = shopLinkFor(shopCode);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -116,7 +120,12 @@ export function Settings({
         <CardContent className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="shop-name">{t("console.orgName")}</Label>
-            <Input id="shop-name" value={shopName} onChange={(e) => setShopName(e.target.value)} className="h-11" />
+            <Input
+              id="shop-name"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              className="h-11"
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="shop-currency">{t("set.currency")}</Label>
@@ -131,7 +140,9 @@ export function Settings({
           <Button
             className="h-11"
             disabled={saveOrg.isPending}
-            onClick={() => saveOrg.mutate({ name: shopName.trim() || name, currency: curr.trim() || "RM" })}
+            onClick={() =>
+              saveOrg.mutate({ name: shopName.trim() || name, currency: curr.trim() || "RM" })
+            }
           >
             {t("common.save")}
           </Button>
@@ -151,7 +162,13 @@ export function Settings({
           <CardTitle className="text-base">{t("set.qr")}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {qrUrl ? <img src={qrUrl} alt="DuitNow QR" className="max-h-52 rounded-lg border object-contain" /> : null}
+          {qrUrl ? (
+            <img
+              src={qrUrl}
+              alt="DuitNow QR"
+              className="max-h-52 rounded-lg border object-contain"
+            />
+          ) : null}
           <div className="grid gap-2">
             <Label htmlFor="qr-file">{t("set.uploadQr")}</Label>
             <Input
@@ -162,7 +179,8 @@ export function Settings({
               className="h-11"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) setCropFile(file);
+                if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES)
+                  setCropFile(file);
                 else if (file) toast.error(t("order.imageOnly"));
               }}
             />
@@ -187,6 +205,27 @@ export function Settings({
 
       <Card className="lg:col-span-2">
         <CardContent className="grid gap-4 p-4">
+          <div className="grid gap-2">
+            <Label>{t("set.shopCode")}</Label>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={shopCode}
+                className="h-11 font-mono text-lg tracking-[0.2em]"
+              />
+              <Button
+                variant="outline"
+                className="h-11"
+                onClick={() => {
+                  void navigator.clipboard.writeText(shopCode);
+                  toast.success(t("common.copied"));
+                }}
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("set.shopCodeHint")}</p>
+          </div>
           <div className="grid gap-2">
             <Label>{t("set.shopLink")}</Label>
             <div className="flex gap-2">

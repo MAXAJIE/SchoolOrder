@@ -1,736 +1,1431 @@
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/OrderStatus.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/OrderStatus.tsx
---- a/src/components/OrderStatus.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/components/OrderStatus.tsx	2026-09-13 06:22:53.814551632 +0000
-@@ -0,0 +1,51 @@
-+import { Badge } from "@/components/ui/badge";
-+import { useI18n, type TKey } from "@/lib/i18n";
-+import { cn } from "@/lib/utils";
-+
-+type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled";
-+type PaymentStatus = "pending_payment" | "proof_uploaded" | "paid" | "rejected";
-+
-+const STATUS_META: Record<OrderStatus, { emoji: string; className: string; hint: TKey }> = {
-+  pending: { emoji: "⏳", className: "status-pending", hint: "order.statusHint.pending" },
-+  confirmed: { emoji: "👍", className: "status-confirmed", hint: "order.statusHint.confirmed" },
-+  completed: { emoji: "🎉", className: "status-completed", hint: "order.statusHint.completed" },
-+  cancelled: { emoji: "✕", className: "status-cancelled", hint: "order.statusHint.cancelled" },
-+};
-+
-+export function OrderStatusBadge({ status }: { status: OrderStatus }) {
-+  const { t } = useI18n();
-+  const meta = STATUS_META[status];
-+  return (
-+    <Badge className={cn("gap-1 border px-2.5 py-1", meta.className)}>
-+      <span aria-hidden>{meta.emoji}</span>
-+      {t(`status.${status}` as TKey)}
-+    </Badge>
-+  );
-+}
-+
-+export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
-+  const { t } = useI18n();
-+  return <Badge className={cn("border px-2.5 py-1", `payment-${status}`)}>{t(`pay.${status}` as TKey)}</Badge>;
-+}
-+
-+export function OrderStatusBanner({
-+  status,
-+  paymentStatus,
-+}: {
-+  status: OrderStatus;
-+  paymentStatus: PaymentStatus;
-+}) {
-+  const { t } = useI18n();
-+  const meta = STATUS_META[status];
-+  return (
-+    <section className={cn("status-banner", meta.className)} aria-live="polite">
-+      <div className="status-banner-icon" aria-hidden>{meta.emoji}</div>
-+      <div className="min-w-0">
-+        <p className="text-xs font-semibold uppercase text-current/70">{t("common.status")}</p>
-+        <h1 className="font-display text-2xl font-bold">{t(`status.${status}` as TKey)}</h1>
-+        <p className="mt-1 text-sm text-current/75">{t(meta.hint)}</p>
-+      </div>
-+      {status !== "cancelled" ? <PaymentStatusBadge status={paymentStatus} /> : null}
-+    </section>
-+  );
-+}
-\ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/AppearanceSettings.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/AppearanceSettings.tsx
---- a/src/components/console/AppearanceSettings.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/components/console/AppearanceSettings.tsx	2026-09-13 06:23:47.203372959 +0000
-@@ -0,0 +1,107 @@
-+import { useState } from "react";
-+import { useMutation, useQueryClient } from "@tanstack/react-query";
-+import { Palette } from "lucide-react";
-+import { toast } from "sonner";
-+import { supabase } from "@/integrations/supabase/client";
-+import { Button } from "@/components/ui/button";
-+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-+import { Label } from "@/components/ui/label";
-+import { useI18n, translateError, type TKey } from "@/lib/i18n";
-+import {
-+  DEFAULT_BUTTON_COLOR,
-+  DEFAULT_SHOP_THEME,
-+  SHOP_THEMES,
-+  isShopTheme,
-+  safeButtonColor,
-+  type ShopTheme,
-+} from "@/lib/shop-theme";
-+import { cn } from "@/lib/utils";
-+
-+export function AppearanceSettings({
-+  orgId,
-+  initialTheme,
-+  initialButtonColor,
-+}: {
-+  orgId: string;
-+  initialTheme?: string | null;
-+  initialButtonColor?: string | null;
-+}) {
-+  const { t } = useI18n();
-+  const qc = useQueryClient();
-+  const [theme, setTheme] = useState<ShopTheme>(
-+    initialTheme && isShopTheme(initialTheme) ? initialTheme : DEFAULT_SHOP_THEME,
-+  );
-+  const [buttonColor, setButtonColor] = useState(safeButtonColor(initialButtonColor));
-+
-+  const save = useMutation({
-+    mutationFn: async () => {
-+      const { error } = await supabase.rpc("update_shop_appearance", {
-+        p_org: orgId,
-+        p_theme: theme,
-+        p_button_color: safeButtonColor(buttonColor),
-+      });
-+      if (error) throw error;
-+    },
-+    onSuccess: () => {
-+      toast.success(t("set.appearanceSaved"));
-+      void qc.invalidateQueries({ queryKey: ["membership"] });
-+      void qc.invalidateQueries({ queryKey: ["shop"] });
-+    },
-+    onError: (err: Error) => toast.error(translateError(t, err.message)),
-+  });
-+
-+  return (
-+    <Card>
-+      <CardHeader>
-+        <CardTitle className="flex items-center gap-2 text-base">
-+          <Palette className="h-4 w-4 text-primary" aria-hidden />
-+          {t("set.appearance")}
-+        </CardTitle>
-+      </CardHeader>
-+      <CardContent className="grid gap-5">
-+        <fieldset className="grid gap-2">
-+          <legend className="mb-1 text-sm font-medium">{t("set.publicTheme")}</legend>
-+          <div className="grid grid-cols-3 gap-2">
-+            {SHOP_THEMES.map((option) => (
-+              <Button
-+                key={option}
-+                type="button"
-+                variant="outline"
-+                aria-pressed={theme === option}
-+                onClick={() => setTheme(option)}
-+                className={cn("theme-choice", `theme-choice-${option}`, theme === option && "theme-choice-active")}
-+              >
-+                <span className="theme-choice-swatch" aria-hidden />
-+                <span>{t(`set.theme.${option}` as TKey)}</span>
-+              </Button>
-+            ))}
-+          </div>
-+        </fieldset>
-+        <div className="grid gap-2">
-+          <Label htmlFor="shop-button-color">{t("set.buttonColor")}</Label>
-+          <div className="flex items-center gap-3 rounded-md border p-2">
-+            <input
-+              id="shop-button-color"
-+              type="color"
-+              value={buttonColor}
-+              onChange={(event) => setButtonColor(event.target.value)}
-+              className="h-10 w-12 cursor-pointer rounded border-0 bg-transparent"
-+            />
-+            <span className="flex-1 font-mono text-sm">{buttonColor.toUpperCase()}</span>
-+            <Button
-+              type="button"
-+              size="sm"
-+              variant="outline"
-+              onClick={() => setButtonColor(DEFAULT_BUTTON_COLOR)}
-+            >
-+              {t("set.resetColor")}
-+            </Button>
-+          </div>
-+        </div>
-+        <Button className="h-11" disabled={save.isPending} onClick={() => save.mutate()}>
-+          {t("common.save")}
-+        </Button>
-+      </CardContent>
-+    </Card>
-+  );
-+}
-\ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/ConsoleApp.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/ConsoleApp.tsx
---- a/src/components/console/ConsoleApp.tsx	2026-09-13 06:22:34.530977802 +0000
-+++ b/src/components/console/ConsoleApp.tsx	2026-09-13 06:22:55.273375820 +0000
-@@ -17,6 +17,7 @@
- import { Dealers } from "@/components/console/Dealers";
- import { Requests } from "@/components/console/Requests";
- import { Settings } from "@/components/console/Settings";
-+import { AppearanceSettings } from "@/components/console/AppearanceSettings";
- import { useAuth } from "@/lib/auth";
- import { useMembership } from "@/lib/org";
- import { useI18n, translateError, type TKey } from "@/lib/i18n";
-@@ -78,7 +79,10 @@
-         { id: "dealers", label: t("nav.dealers") },
-         { id: "settings", label: t("nav.settings") },
-       ]
--    : [{ id: "dashboard", label: t("nav.requests") }];
-+    : [
-+        { id: "dashboard", label: t("nav.requests") },
-+        { id: "settings", label: t("nav.appearance") },
-+      ];
- 
-   return (
-     <div className="min-h-screen bg-background">
-@@ -91,8 +95,7 @@
-           </Badge>
-         </div>
- 
--        {isOwner ? (
--          <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
-+        <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
-             {tabs.map((tb) => (
-               <Button
-                 key={tb.id}
-@@ -105,9 +108,8 @@
-               </Button>
-             ))}
-           </nav>
--        ) : null}
- 
--        {!isOwner ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
-+        {!isOwner && tab === "dashboard" ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
-         {isOwner && tab === "dashboard" ? (
-           <Dashboard orgId={organizationId} currency={organization.currency} />
-         ) : null}
-@@ -129,6 +131,15 @@
-             name={organization.name}
-             currency={organization.currency}
-             isOpen={organization.is_open}
-+            publicTheme={organization.public_theme}
-+            buttonColor={organization.button_color}
-+          />
-+        ) : null}
-+        {!isOwner && tab === "settings" ? (
-+          <AppearanceSettings
-+            orgId={organizationId}
-+            initialTheme={organization.public_theme}
-+            initialButtonColor={organization.button_color}
-           />
-         ) : null}
-       </main>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/Orders.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/Orders.tsx
---- a/src/components/console/Orders.tsx	2026-09-13 06:22:34.542135215 +0000
-+++ b/src/components/console/Orders.tsx	2026-09-13 06:22:55.256855187 +0000
-@@ -23,6 +23,7 @@
- import { money, dateTime } from "@/lib/format";
- import { callRpc } from "@/lib/rpc";
- import { PROOF_BUCKET, signedUrl } from "@/lib/storage";
-+import { OrderStatusBadge, PaymentStatusBadge } from "@/components/OrderStatus";
- 
- type Order = {
-   id: string;
-@@ -186,12 +187,8 @@
-                 </div>
-                 <div className="flex flex-wrap gap-2">
-                   <Badge variant="outline">{o.pickup_code}</Badge>
--                  <Badge variant={o.status === "cancelled" ? "destructive" : "secondary"}>
--                    {t(`status.${o.status}` as TKey)}
--                  </Badge>
--                  <Badge variant={o.payment_status === "paid" ? "default" : "outline"}>
--                    {t(`pay.${o.payment_status}` as TKey)}
--                  </Badge>
-+                  <OrderStatusBadge status={o.status} />
-+                  {o.status !== "cancelled" ? <PaymentStatusBadge status={o.payment_status} /> : null}
-                 </div>
-               </div>
- 
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/console/Settings.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/console/Settings.tsx
---- a/src/components/console/Settings.tsx	2026-09-13 06:22:34.555999822 +0000
-+++ b/src/components/console/Settings.tsx	2026-09-13 06:22:55.282277846 +0000
-@@ -11,6 +11,7 @@
- import { useI18n, translateError } from "@/lib/i18n";
- import { useAuth } from "@/lib/auth";
- import { ImageCropper } from "@/components/ImageCropper";
-+import { AppearanceSettings } from "@/components/console/AppearanceSettings";
- import {
-   IMAGE_TYPES,
-   MAX_IMAGE_BYTES,
-@@ -24,11 +25,15 @@
-   name,
-   currency,
-   isOpen,
-+  publicTheme,
-+  buttonColor,
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/components/console/AppearanceSettings.tsx so/src/components/console/AppearanceSettings.tsx
+--- a/src/components/console/AppearanceSettings.tsx	2026-09-15 09:52:29.990213430 +0000
++++ b/src/components/console/AppearanceSettings.tsx	2026-09-15 09:52:30.306377379 +0000
+@@ -23,8 +23,8 @@
+   initialButtonColor,
  }: {
    orgId: string;
-   name: string;
-   currency: string;
-   isOpen: boolean;
-+  publicTheme?: string | null;
-+  buttonColor?: string | null;
+-  initialTheme?: string | null;
+-  initialButtonColor?: string | null;
++  initialTheme?: string | null | undefined;
++  initialButtonColor?: string | null | undefined;
  }) {
    const { t } = useI18n();
-   const { user } = useAuth();
-@@ -174,6 +179,12 @@
-         }}
-       />
- 
-+      <AppearanceSettings
-+        orgId={orgId}
-+        initialTheme={publicTheme}
-+        initialButtonColor={buttonColor}
-+      />
-+
-       <Card className="lg:col-span-2">
-         <CardContent className="grid gap-4 p-4">
-           <div className="grid gap-2">
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/shop/ShopPage.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/shop/ShopPage.tsx
---- a/src/components/shop/ShopPage.tsx	2026-09-13 06:22:34.563479535 +0000
-+++ b/src/components/shop/ShopPage.tsx	2026-09-13 06:22:55.267508498 +0000
-@@ -28,6 +28,7 @@
-   fileExtension,
-   useSignedUrl,
- } from "@/lib/storage";
-+import { DEFAULT_SHOP_THEME, isShopTheme, shopThemeStyle } from "@/lib/shop-theme";
- 
- type OptionValue = {
-   id: string;
-@@ -78,7 +79,7 @@
-     queryFn: async () => {
-       const { data: org, error: orgErr } = await supabase
-         .from("organizations")
--        .select("id, name, currency, is_open")
-+        .select("id, name, currency, is_open, public_theme, button_color")
-         .order("created_at", { ascending: true })
-         .limit(1)
-         .maybeSingle();
-@@ -171,6 +172,9 @@
-   const [picking, setPicking] = useState<Product | null>(null);
- 
-   const currency = data?.org?.currency ?? "RM";
-+  const publicTheme = data?.org?.public_theme && isShopTheme(data.org.public_theme)
-+    ? data.org.public_theme
-+    : DEFAULT_SHOP_THEME;
-   const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
-   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
-   const count = lines.reduce((sum, l) => sum + l.qty, 0);
-@@ -237,12 +241,15 @@
-   }
- 
-   return (
--    <div className="min-h-screen bg-background pb-24">
-+    <div
-+      className={`shop-theme shop-theme-${publicTheme} min-h-screen bg-background pb-24`}
-+      style={shopThemeStyle(data?.org?.button_color)}
-+    >
-       <SiteHeader subtitle={data?.org?.name} />
- 
-       <main className="mx-auto max-w-6xl px-4 py-6">
-         <div className="mb-6">
--          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("app.tagline")}</h1>
-+          <h1 className="font-display text-2xl font-bold sm:text-3xl">🧋 {t("app.tagline")}</h1>
-           {data?.org && !data.org.is_open ? (
-             <p
-               className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-@@ -331,7 +338,7 @@
-           </div>
-           <Sheet open={open} onOpenChange={setOpen}>
-             <SheetTrigger asChild>
--              <Button className="h-11" disabled={count === 0 || !data?.org?.is_open}>
-+              <Button variant="shop" className="h-11" disabled={count === 0 || !data?.org?.is_open}>
-                 {t("shop.checkout")}
-               </Button>
-             </SheetTrigger>
-@@ -840,7 +847,7 @@
-         </p>
-       ) : null}
- 
--      <Button type="submit" className="h-12" disabled={busy}>
-+      <Button type="submit" variant="shop" className="h-12" disabled={busy}>
-         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-         {busy ? t("shop.placing") : t("shop.placeOrder")}
-       </Button>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/components/ui/button.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/components/ui/button.tsx
---- a/src/components/ui/button.tsx	2026-09-13 06:22:34.601198644 +0000
-+++ b/src/components/ui/button.tsx	2026-09-13 06:22:55.300364290 +0000
-@@ -5,7 +5,7 @@
- import { cn } from "@/lib/utils";
- 
- const buttonVariants = cva(
--  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-[color,background-color,border-color,transform,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-   {
-     variants: {
-       variant: {
-@@ -16,6 +16,7 @@
-         secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
-         ghost: "hover:bg-accent hover:text-accent-foreground",
-         link: "text-primary underline-offset-4 hover:underline",
-+        shop: "shop-button shadow-sm",
-       },
-       size: {
-         default: "h-9 px-4 py-2",
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/integrations/supabase/types.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/integrations/supabase/types.ts
---- a/src/integrations/supabase/types.ts	2026-09-13 06:22:34.771293947 +0000
-+++ b/src/integrations/supabase/types.ts	2026-09-13 06:22:55.308752300 +0000
-@@ -343,6 +343,8 @@
-       }
-       organizations: {
-         Row: {
-+          button_color: string
-+          public_theme: string
-           created_at: string
-           currency: string
-           id: string
-@@ -351,6 +353,8 @@
-           owner_id: string
-         }
-         Insert: {
-+          button_color?: string
-+          public_theme?: string
-           created_at?: string
-           currency?: string
-           id?: string
-@@ -359,6 +363,8 @@
-           owner_id: string
-         }
-         Update: {
-+          button_color?: string
-+          public_theme?: string
-           created_at?: string
-           currency?: string
-           id?: string
-@@ -785,6 +791,10 @@
-       [_ in never]: never
-     }
-     Functions: {
-+      update_shop_appearance: {
-+        Args: { p_button_color: string; p_org: string; p_theme: string }
-+        Returns: undefined
-+      }
-       adjust_stock: {
-         Args: {
-           p_delta: number
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/i18n.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/i18n.tsx
---- a/src/lib/i18n.tsx	2026-09-13 06:22:34.791261283 +0000
-+++ b/src/lib/i18n.tsx	2026-09-13 06:23:15.392752692 +0000
-@@ -130,6 +130,7 @@
-   "nav.dealers": { en: "Dealers", zh: "经销商", ms: "Pengedar" },
-   "nav.requests": { en: "My requests", zh: "我的请求", ms: "Permintaan Saya" },
-   "nav.settings": { en: "Settings", zh: "设置", ms: "Tetapan" },
-+  "nav.appearance": { en: "Appearance", zh: "外观", ms: "Penampilan" },
-   "common.language": { en: "Language", zh: "语言", ms: "Bahasa" },
-   "common.theme": { en: "Theme", zh: "主题", ms: "Tema" },
-   "common.light": { en: "Light", zh: "浅色", ms: "Cerah" },
-@@ -283,6 +284,10 @@
-     ms: "Simpan pautan halaman ini — ia satu-satunya cara kembali ke pesanan anda.",
-   },
-   "order.payNow": { en: "Scan to pay", zh: "扫码付款", ms: "Imbas untuk bayar" },
-+  "order.statusHint.pending": { en: "We received your order and the shop is reviewing it.", zh: "订单已收到，商家正在确认。", ms: "Pesanan diterima dan sedang disemak." },
-+  "order.statusHint.confirmed": { en: "Your order is confirmed and being prepared.", zh: "订单已确认，正在准备中。", ms: "Pesanan disahkan dan sedang disediakan." },
-+  "order.statusHint.completed": { en: "This order is complete. Enjoy!", zh: "订单已完成，请享用！", ms: "Pesanan selesai. Selamat menikmati!" },
-+  "order.statusHint.cancelled": { en: "This order was cancelled. No further action is needed.", zh: "订单已取消，无需继续操作。", ms: "Pesanan dibatalkan. Tiada tindakan lanjut diperlukan." },
- 
-   "req.draft": { en: "Draft", zh: "草稿", ms: "Draf" },
-   "req.submitted": { en: "Submitted", zh: "已提交", ms: "Dihantar" },
-@@ -451,6 +456,14 @@
-   "set.uploadQr": { en: "Upload QR image", zh: "上传 QR 图片", ms: "Muat naik imej QR" },
-   "set.myUserId": { en: "My user ID", zh: "我的用户 ID", ms: "ID pengguna saya" },
-   "set.shopLink": { en: "Public shop link", zh: "公开商店链接", ms: "Pautan kedai awam" },
-+  "set.appearance": { en: "Public shop appearance", zh: "公开商店外观", ms: "Penampilan kedai awam" },
-+  "set.publicTheme": { en: "Theme", zh: "主题", ms: "Tema" },
-+  "set.buttonColor": { en: "Button colour", zh: "按钮颜色", ms: "Warna butang" },
-+  "set.resetColor": { en: "Reset", zh: "重置", ms: "Tetapkan semula" },
-+  "set.appearanceSaved": { en: "Appearance saved", zh: "外观已保存", ms: "Penampilan disimpan" },
-+  "set.theme.ocean": { en: "Ocean", zh: "深海", ms: "Laut" },
-+  "set.theme.mint": { en: "Mint", zh: "薄荷", ms: "Pudina" },
-+  "set.theme.coral": { en: "Coral", zh: "珊瑚", ms: "Karang" },
- 
-   "err.OUT_OF_STOCK": { en: "Out of stock:", zh: "库存不足：", ms: "Kehabisan stok:" },
-   "err.SHOP_CLOSED": { en: "The shop is closed.", zh: "商店已关闭。", ms: "Kedai ditutup." },
-@@ -510,6 +523,7 @@
-     zh: "库存不能为负。",
-     ms: "Stok tidak boleh negatif.",
-   },
-+  "err.INVALID_APPEARANCE": { en: "Choose a valid theme and colour.", zh: "请选择有效的主题和颜色。", ms: "Pilih tema dan warna yang sah." },
-   "err.FORBIDDEN": {
-     en: "You are not allowed to do that.",
-     zh: "你没有权限执行此操作。",
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/org.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/org.ts
---- a/src/lib/org.ts	2026-09-13 06:22:34.796542241 +0000
-+++ b/src/lib/org.ts	2026-09-13 06:22:55.289454900 +0000
-@@ -13,6 +13,8 @@
-     currency: string;
-     is_open: boolean;
-     owner_id: string;
-+    public_theme: string;
-+    button_color: string;
-   };
- } | null;
- 
-@@ -36,7 +38,7 @@
- 
-       const { data: org, error: orgErr } = await supabase
-         .from("organizations")
--        .select("id, name, currency, is_open, owner_id")
-+        .select("id, name, currency, is_open, owner_id, public_theme, button_color")
-         .eq("id", member.organization_id)
-         .maybeSingle();
-       if (orgErr) throw orgErr;
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/lib/shop-theme.ts /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/lib/shop-theme.ts
---- a/src/lib/shop-theme.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/lib/shop-theme.ts	2026-09-13 06:22:54.112989464 +0000
-@@ -0,0 +1,27 @@
-+import type { CSSProperties } from "react";
-+
-+export const SHOP_THEMES = ["ocean", "mint", "coral"] as const;
-+export type ShopTheme = (typeof SHOP_THEMES)[number];
-+
-+export const DEFAULT_SHOP_THEME: ShopTheme = "ocean";
-+export const DEFAULT_BUTTON_COLOR = "#2D8A9E";
-+
-+export function isShopTheme(value: string): value is ShopTheme {
-+  return SHOP_THEMES.includes(value as ShopTheme);
-+}
-+
-+export function safeButtonColor(value?: string | null) {
-+  return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : DEFAULT_BUTTON_COLOR;
-+}
-+
-+export function shopThemeStyle(buttonColor?: string | null): CSSProperties {
-+  const color = safeButtonColor(buttonColor);
-+  const red = Number.parseInt(color.slice(1, 3), 16);
-+  const green = Number.parseInt(color.slice(3, 5), 16);
-+  const blue = Number.parseInt(color.slice(5, 7), 16);
-+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-+  return {
-+    "--shop-button": color,
-+    "--shop-button-foreground": luminance > 0.56 ? "#102A32" : "#FFFFFF",
-+  } as CSSProperties;
-+}
-\ No newline at end of file
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/routes/__root.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/routes/__root.tsx
---- a/src/routes/__root.tsx	2026-09-13 06:22:34.829250460 +0000
-+++ b/src/routes/__root.tsx	2026-09-13 06:23:15.405862440 +0000
-@@ -92,7 +92,7 @@
-       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-       {
-         rel: "stylesheet",
--        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
-+        href: "https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap",
-       },
-       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-     ],
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/routes/order.$token.tsx /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/routes/order.$token.tsx
---- a/src/routes/order.$token.tsx	2026-09-13 06:22:34.847824977 +0000
-+++ b/src/routes/order.$token.tsx	2026-09-13 06:23:15.381305136 +0000
-@@ -1,17 +1,17 @@
- import { createFileRoute } from "@tanstack/react-router";
- import { useQuery } from "@tanstack/react-query";
--import { CheckCircle2, Copy, Printer } from "lucide-react";
-+import { Copy, Printer } from "lucide-react";
+   const qc = useQueryClient();
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/components/console/ConsoleApp.tsx so/src/components/console/ConsoleApp.tsx
+--- a/src/components/console/ConsoleApp.tsx	2026-09-15 09:52:29.990263449 +0000
++++ b/src/components/console/ConsoleApp.tsx	2026-09-15 09:52:30.975929537 +0000
+@@ -2,7 +2,6 @@
+ import { useNavigate } from "@tanstack/react-router";
+ import { useQueryClient } from "@tanstack/react-query";
  import { toast } from "sonner";
- import { supabase } from "@/integrations/supabase/client";
+-import { supabase } from "@/integrations/supabase/client";
  import { SiteHeader } from "@/components/SiteHeader";
  import { LoadingState, ErrorState } from "@/components/States";
  import { Button } from "@/components/ui/button";
--import { Badge } from "@/components/ui/badge";
+@@ -21,6 +20,7 @@
+ import { useAuth } from "@/lib/auth";
+ import { useMembership } from "@/lib/org";
+ import { useI18n, translateError, type TKey } from "@/lib/i18n";
++import { callRpc } from "@/lib/rpc";
+ 
+ type OwnerTab = "dashboard" | "products" | "orders" | "promos" | "dealers" | "settings";
+ 
+@@ -96,20 +96,22 @@
+         </div>
+ 
+         <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label={t("nav.console")}>
+-            {tabs.map((tb) => (
+-              <Button
+-                key={tb.id}
+-                size="sm"
+-                variant={tab === tb.id ? "default" : "outline"}
+-                className="h-11 shrink-0"
+-                onClick={() => setTab(tb.id)}
+-              >
+-                {tb.label}
+-              </Button>
+-            ))}
+-          </nav>
++          {tabs.map((tb) => (
++            <Button
++              key={tb.id}
++              size="sm"
++              variant={tab === tb.id ? "default" : "outline"}
++              className="h-11 shrink-0"
++              onClick={() => setTab(tb.id)}
++            >
++              {tb.label}
++            </Button>
++          ))}
++        </nav>
+ 
+-        {!isOwner && tab === "dashboard" ? <Requests orgId={organizationId} currency={organization.currency} /> : null}
++        {!isOwner && tab === "dashboard" ? (
++          <Requests orgId={organizationId} currency={organization.currency} />
++        ) : null}
+         {isOwner && tab === "dashboard" ? (
+           <Dashboard orgId={organizationId} currency={organization.currency} />
+         ) : null}
+@@ -129,6 +131,7 @@
+           <Settings
+             orgId={organizationId}
+             name={organization.name}
++            shopCode={organization.shop_code}
+             currency={organization.currency}
+             isOpen={organization.is_open}
+             publicTheme={organization.public_theme}
+@@ -147,32 +150,57 @@
+   );
+ }
+ 
++/**
++ * Opening a shop is a two-step gate: an activation code first, the shop name
++ * only once the server has accepted that code. The code is never checked in
++ * the browser, and the shop is created in one server-side transaction, so a
++ * curious signed-in visitor cannot quietly create a shop of their own.
++ */
+ function CreateShop({ onCreated }: { onCreated: () => void }) {
+   const { t } = useI18n();
+   const { user } = useAuth();
+   const qc = useQueryClient();
++  const [step, setStep] = useState<"code" | "name">("code");
++  const [code, setCode] = useState("");
+   const [name, setName] = useState("");
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+ 
++  async function verify() {
++    setError(null);
++    if (code.trim().length < 4) {
++      setError(t("common.required"));
++      return;
++    }
++    setBusy(true);
++    try {
++      const ok = await callRpc<boolean>("verify_shop_activation_code", {
++        p_code: code.trim().toUpperCase(),
++      });
++      if (!ok) {
++        setError(t("err.INVALID_ACTIVATION_CODE"));
++        return;
++      }
++      setStep("name");
++    } catch (err) {
++      setError(translateError(t, err instanceof Error ? err.message : null));
++    } finally {
++      setBusy(false);
++    }
++  }
++
+   async function create() {
+     setError(null);
+-    if (name.trim().length < 2) return setError(t("common.required"));
++    if (name.trim().length < 2) {
++      setError(t("common.required"));
++      return;
++    }
+     setBusy(true);
+     try {
+-      const { data: org, error: orgErr } = await supabase
+-        .from("organizations")
+-        .insert({ name: name.trim(), owner_id: user!.id })
+-        .select("id")
+-        .single();
+-      if (orgErr) throw orgErr;
+-      const { error: memberErr } = await supabase.from("organization_members").insert({
+-        organization_id: org.id,
+-        user_id: user!.id,
+-        role: "owner",
+-        status: "active",
++      await callRpc<{ organization_id: string; shop_code: string }>("create_shop_with_code", {
++        p_name: name.trim(),
++        p_code: code.trim().toUpperCase(),
+       });
+-      if (memberErr) throw memberErr;
+       toast.success(t("common.save"));
+       await qc.invalidateQueries({ queryKey: ["membership", user!.id] });
+       onCreated();
+@@ -186,19 +214,46 @@
+   return (
+     <Card>
+       <CardHeader>
+-        <CardTitle className="text-base">{t("console.createOrg")}</CardTitle>
++        <CardTitle className="text-base">
++          {step === "code" ? t("console.activationTitle") : t("console.createOrg")}
++        </CardTitle>
+       </CardHeader>
+       <CardContent className="grid gap-3">
+-        <p className="text-sm text-muted-foreground">{t("console.noOrg")}</p>
+-        <div className="grid gap-2">
+-          <Label htmlFor="org-name">{t("console.orgName")}</Label>
+-          <Input
+-            id="org-name"
+-            value={name}
+-            onChange={(e) => setName(e.target.value)}
+-            className="h-11"
+-          />
+-        </div>
++        <p className="text-sm text-muted-foreground">
++          {step === "code" ? t("console.activationBody") : t("console.noOrg")}
++        </p>
++
++        {step === "code" ? (
++          <div className="grid gap-2">
++            <Label htmlFor="activation-code">{t("console.activationCode")}</Label>
++            <Input
++              id="activation-code"
++              value={code}
++              autoComplete="off"
++              spellCheck={false}
++              maxLength={40}
++              className="h-11 font-mono uppercase tracking-[0.12em]"
++              onChange={(e) => setCode(e.target.value.toUpperCase())}
++              onKeyDown={(e) => {
++                if (e.key === "Enter" && !busy) void verify();
++              }}
++            />
++          </div>
++        ) : (
++          <div className="grid gap-2">
++            <Label htmlFor="org-name">{t("console.orgName")}</Label>
++            <Input
++              id="org-name"
++              value={name}
++              className="h-11"
++              onChange={(e) => setName(e.target.value)}
++              onKeyDown={(e) => {
++                if (e.key === "Enter" && !busy) void create();
++              }}
++            />
++          </div>
++        )}
++
+         {error ? (
+           <p
+             className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+@@ -207,9 +262,29 @@
+             {error}
+           </p>
+         ) : null}
+-        <Button className="h-11" disabled={busy} onClick={() => void create()}>
+-          {t("console.createOrg")}
+-        </Button>
++
++        {step === "code" ? (
++          <Button className="h-11" disabled={busy} onClick={() => void verify()}>
++            {t("console.activationContinue")}
++          </Button>
++        ) : (
++          <div className="flex gap-2">
++            <Button
++              variant="outline"
++              className="h-11"
++              disabled={busy}
++              onClick={() => {
++                setError(null);
++                setStep("code");
++              }}
++            >
++              {t("common.back")}
++            </Button>
++            <Button className="h-11 flex-1" disabled={busy} onClick={() => void create()}>
++              {t("console.createOrg")}
++            </Button>
++          </div>
++        )}
+       </CardContent>
+     </Card>
+   );
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/components/console/Settings.tsx so/src/components/console/Settings.tsx
+--- a/src/components/console/Settings.tsx	2026-09-15 09:52:29.990740912 +0000
++++ b/src/components/console/Settings.tsx	2026-09-15 09:52:31.019297474 +0000
+@@ -9,6 +9,7 @@
+ import { Switch } from "@/components/ui/switch";
  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
- import { Separator } from "@/components/ui/separator";
--import { useI18n, type TKey } from "@/lib/i18n";
-+import { useI18n } from "@/lib/i18n";
+ import { useI18n, translateError } from "@/lib/i18n";
++import { shopLinkFor } from "@/lib/shop-code";
+ import { useAuth } from "@/lib/auth";
+ import { ImageCropper } from "@/components/ImageCropper";
+ import { AppearanceSettings } from "@/components/console/AppearanceSettings";
+@@ -23,6 +24,7 @@
+ export function Settings({
+   orgId,
+   name,
++  shopCode,
+   currency,
+   isOpen,
+   publicTheme,
+@@ -30,6 +32,7 @@
+ }: {
+   orgId: string;
+   name: string;
++  shopCode: string;
+   currency: string;
+   isOpen: boolean;
+   publicTheme?: string | null;
+@@ -105,7 +108,8 @@
+     }
+   }
+ 
+-  const shopLink = typeof window === "undefined" ? "" : window.location.origin;
++  // The link carries the shop code, so it always opens this shop and no other.
++  const shopLink = shopLinkFor(shopCode);
+ 
+   return (
+     <div className="grid gap-4 lg:grid-cols-2">
+@@ -116,7 +120,12 @@
+         <CardContent className="grid gap-4">
+           <div className="grid gap-2">
+             <Label htmlFor="shop-name">{t("console.orgName")}</Label>
+-            <Input id="shop-name" value={shopName} onChange={(e) => setShopName(e.target.value)} className="h-11" />
++            <Input
++              id="shop-name"
++              value={shopName}
++              onChange={(e) => setShopName(e.target.value)}
++              className="h-11"
++            />
+           </div>
+           <div className="grid gap-2">
+             <Label htmlFor="shop-currency">{t("set.currency")}</Label>
+@@ -131,7 +140,9 @@
+           <Button
+             className="h-11"
+             disabled={saveOrg.isPending}
+-            onClick={() => saveOrg.mutate({ name: shopName.trim() || name, currency: curr.trim() || "RM" })}
++            onClick={() =>
++              saveOrg.mutate({ name: shopName.trim() || name, currency: curr.trim() || "RM" })
++            }
+           >
+             {t("common.save")}
+           </Button>
+@@ -151,7 +162,13 @@
+           <CardTitle className="text-base">{t("set.qr")}</CardTitle>
+         </CardHeader>
+         <CardContent className="grid gap-4">
+-          {qrUrl ? <img src={qrUrl} alt="DuitNow QR" className="max-h-52 rounded-lg border object-contain" /> : null}
++          {qrUrl ? (
++            <img
++              src={qrUrl}
++              alt="DuitNow QR"
++              className="max-h-52 rounded-lg border object-contain"
++            />
++          ) : null}
+           <div className="grid gap-2">
+             <Label htmlFor="qr-file">{t("set.uploadQr")}</Label>
+             <Input
+@@ -162,7 +179,8 @@
+               className="h-11"
+               onChange={(e) => {
+                 const file = e.target.files?.[0];
+-                if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES) setCropFile(file);
++                if (file && IMAGE_TYPES.includes(file.type) && file.size <= MAX_IMAGE_BYTES)
++                  setCropFile(file);
+                 else if (file) toast.error(t("order.imageOnly"));
+               }}
+             />
+@@ -188,6 +206,27 @@
+       <Card className="lg:col-span-2">
+         <CardContent className="grid gap-4 p-4">
+           <div className="grid gap-2">
++            <Label>{t("set.shopCode")}</Label>
++            <div className="flex gap-2">
++              <Input
++                readOnly
++                value={shopCode}
++                className="h-11 font-mono text-lg tracking-[0.2em]"
++              />
++              <Button
++                variant="outline"
++                className="h-11"
++                onClick={() => {
++                  void navigator.clipboard.writeText(shopCode);
++                  toast.success(t("common.copied"));
++                }}
++              >
++                <Copy className="h-4 w-4" />
++              </Button>
++            </div>
++            <p className="text-xs text-muted-foreground">{t("set.shopCodeHint")}</p>
++          </div>
++          <div className="grid gap-2">
+             <Label>{t("set.shopLink")}</Label>
+             <div className="flex gap-2">
+               <Input readOnly value={shopLink} className="h-11" />
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/components/shop/ShopPage.tsx so/src/components/shop/ShopPage.tsx
+--- a/src/components/shop/ShopPage.tsx	2026-09-15 09:52:29.991101445 +0000
++++ b/src/components/shop/ShopPage.tsx	2026-09-15 09:52:30.933706409 +0000
+@@ -1,10 +1,10 @@
+ import { useMemo, useRef, useState } from "react";
+-import { useNavigate } from "@tanstack/react-router";
++import { useNavigate, useSearch } from "@tanstack/react-router";
+ import { useQuery } from "@tanstack/react-query";
+ import { ImagePlus, Minus, Plus, Search, ShoppingBag, Loader2, X } from "lucide-react";
+ import { supabase } from "@/integrations/supabase/client";
+ import { SiteHeader } from "@/components/SiteHeader";
+-import { LoadingState, EmptyState, ErrorState } from "@/components/States";
++import { LoadingState, EmptyState } from "@/components/States";
+ import { Button } from "@/components/ui/button";
+ import { Input } from "@/components/ui/input";
+ import { Label } from "@/components/ui/label";
+@@ -28,7 +28,8 @@
+   fileExtension,
+   useSignedUrl,
+ } from "@/lib/storage";
+-import { DEFAULT_SHOP_THEME, isShopTheme, shopThemeStyle } from "@/lib/shop-theme";
++import { safeShopTheme, shopThemeStyle } from "@/lib/shop-theme";
++import { isValidShopCode, normalizeShopCode } from "@/lib/shop-code";
+ 
+ type OptionValue = {
+   id: string;
+@@ -73,18 +74,28 @@
+   return `${productId}::${[...valueIds].sort().join(",")}`;
+ }
+ 
+-function useShopData() {
++type Shop = {
++  id: string;
++  name: string;
++  shop_code: string;
++  currency: string;
++  is_open: boolean;
++  public_theme: string | null;
++  button_color: string | null;
++};
++
++/**
++ * A buyer always reaches one specific shop through that shop's own code.
++ * Resolving the shop server-side means a shop whose owner account is gone
++ * simply cannot be found, so no one can keep ordering from a dead shop.
++ */
++function useShopData(code: string) {
+   return useQuery({
+-    queryKey: ["shop"],
++    queryKey: ["shop", code],
++    enabled: isValidShopCode(code),
++    retry: false,
+     queryFn: async () => {
+-      const { data: org, error: orgErr } = await supabase
+-        .from("organizations")
+-        .select("id, name, currency, is_open, public_theme, button_color")
+-        .order("created_at", { ascending: true })
+-        .limit(1)
+-        .maybeSingle();
+-      if (orgErr) throw orgErr;
+-      if (!org) return { org: null, products: [] as Product[] };
++      const org = await callRpc<Shop>("get_shop_by_code", { p_code: code });
+ 
+       const { data: products, error: prodErr } = await supabase
+         .from("products")
+@@ -123,6 +134,54 @@
+   });
+ }
+ 
++/** Shown until a buyer has a usable shop code, and when a code is unknown. */
++function ShopCodeGate({ initial, invalid }: { initial: string; invalid: boolean }) {
++  const { t } = useI18n();
++  const navigate = useNavigate();
++  const [value, setValue] = useState(initial);
++
++  function submit(event: React.FormEvent) {
++    event.preventDefault();
++    const code = normalizeShopCode(value);
++    if (!isValidShopCode(code)) return;
++    void navigate({ to: "/guest", search: { code } });
++  }
++
++  return (
++    <div className="min-h-screen bg-background">
++      <SiteHeader />
++      <main className="mx-auto flex max-w-md flex-col gap-4 px-4 py-12">
++        <h1 className="font-display text-2xl font-bold">{t("shop.codeTitle")}</h1>
++        <p className="text-sm text-muted-foreground">{t("shop.codeBody")}</p>
++        <form className="grid gap-3" onSubmit={submit}>
++          <Label htmlFor="shop-code">{t("shop.codeLabel")}</Label>
++          <Input
++            id="shop-code"
++            value={value}
++            autoFocus
++            autoComplete="off"
++            spellCheck={false}
++            maxLength={16}
++            className="h-12 font-mono text-lg uppercase tracking-[0.2em]"
++            onChange={(e) => setValue(e.target.value.toUpperCase())}
++          />
++          {invalid ? (
++            <p
++              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
++              role="alert"
++            >
++              {t("shop.codeInvalid")}
++            </p>
++          ) : null}
++          <Button type="submit" className="h-12" disabled={!isValidShopCode(value)}>
++            {t("shop.codeContinue")}
++          </Button>
++        </form>
++      </main>
++    </div>
++  );
++}
++
+ /** Active DuitNow QR for this shop only. Never fall back to another shop's QR. */
+ function usePaymentQr(orgId: string, enabled: boolean) {
+   return useQuery({
+@@ -165,16 +224,15 @@
+ export function ShopPage() {
+   const { t } = useI18n();
+   const navigate = useNavigate();
+-  const { data, isLoading, isError, refetch } = useShopData();
++  const { code } = useSearch({ from: "/guest" });
++  const { data, isLoading, isError } = useShopData(code);
+   const [search, setSearch] = useState("");
+   const [cart, setCart] = useState<Record<string, CartLine>>({});
+   const [open, setOpen] = useState(false);
+   const [picking, setPicking] = useState<Product | null>(null);
+ 
+   const currency = data?.org?.currency ?? "RM";
+-  const publicTheme = data?.org?.public_theme && isShopTheme(data.org.public_theme)
+-    ? data.org.public_theme
+-    : DEFAULT_SHOP_THEME;
++  const publicTheme = safeShopTheme(data?.org?.public_theme);
+   const lines = useMemo(() => Object.values(cart).filter((l) => l.qty > 0), [cart]);
+   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0);
+   const count = lines.reduce((sum, l) => sum + l.qty, 0);
+@@ -240,6 +298,12 @@
+     });
+   }
+ 
++  // An unusable or unknown code never shows a shop: the buyer is asked for a
++  // code instead, so a removed shop cannot be ordered from by an old link.
++  if (!isValidShopCode(code) || isError) {
++    return <ShopCodeGate initial={code} invalid={isValidShopCode(code) && isError} />;
++  }
++
+   return (
+     <div
+       className={`shop-theme shop-theme-${publicTheme} min-h-screen bg-background pb-24`}
+@@ -272,10 +336,7 @@
+         </div>
+ 
+         {isLoading ? <LoadingState /> : null}
+-        {isError ? <ErrorState onRetry={() => void refetch()} /> : null}
+-        {!isLoading && !isError && filtered.length === 0 ? (
+-          <EmptyState label={t("shop.empty")} />
+-        ) : null}
++        {!isLoading && filtered.length === 0 ? <EmptyState label={t("shop.empty")} /> : null}
+ 
+         {/* POS-style tiles: picture and name only. Everything else is in the dialog. */}
+         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/integrations/supabase/types.ts so/src/integrations/supabase/types.ts
+--- a/src/integrations/supabase/types.ts	2026-09-15 09:52:29.993050609 +0000
++++ b/src/integrations/supabase/types.ts	2026-09-15 09:52:30.306274918 +0000
+@@ -350,7 +350,8 @@
+           id: string
+           is_open: boolean
+           name: string
+-          owner_id: string
++          owner_id: string | null
++          shop_code: string
+         }
+         Insert: {
+           button_color?: string
+@@ -360,7 +361,8 @@
+           id?: string
+           is_open?: boolean
+           name: string
+-          owner_id: string
++          owner_id?: string | null
++          shop_code?: string
+         }
+         Update: {
+           button_color?: string
+@@ -370,7 +372,8 @@
+           id?: string
+           is_open?: boolean
+           name?: string
+-          owner_id?: string
++          owner_id?: string | null
++          shop_code?: string
+         }
+         Relationships: []
+       }
+@@ -791,6 +794,13 @@
+       [_ in never]: never
+     }
+     Functions: {
++      create_shop_with_code: {
++        Args: { p_code: string; p_name: string }
++        Returns: Json
++      }
++      get_shop_by_code: { Args: { p_code: string }; Returns: Json }
++      shop_is_live: { Args: { _org: string }; Returns: boolean }
++      verify_shop_activation_code: { Args: { p_code: string }; Returns: boolean }
+       update_shop_appearance: {
+         Args: { p_button_color: string; p_org: string; p_theme: string }
+         Returns: undefined
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/lib/i18n.tsx so/src/lib/i18n.tsx
+--- a/src/lib/i18n.tsx	2026-09-15 09:52:29.993430567 +0000
++++ b/src/lib/i18n.tsx	2026-09-15 09:52:30.301712627 +0000
+@@ -529,6 +529,66 @@
+     zh: "你没有权限执行此操作。",
+     ms: "Anda tiada kebenaran.",
+   },
++  "shop.codeTitle": {
++    en: "Enter your shop code",
++    zh: "请输入商店代码",
++    ms: "Masukkan kod kedai anda",
++  },
++  "shop.codeBody": {
++    en: "Every shop has its own code. Ask the shop for it, or scan their QR code or link.",
++    zh: "每家商店都有专属代码。请向店家索取，或扫描他们的二维码或链接。",
++    ms: "Setiap kedai mempunyai kodnya sendiri. Minta daripada kedai, atau imbas kod QR atau pautan mereka.",
++  },
++  "shop.codeLabel": { en: "Shop code", zh: "商店代码", ms: "Kod kedai" },
++  "shop.codeContinue": { en: "Open shop", zh: "进入商店", ms: "Buka kedai" },
++  "shop.codeInvalid": {
++    en: "We could not find a shop with that code. Check the code and try again.",
++    zh: "找不到该代码对应的商店，请检查后重试。",
++    ms: "Kami tidak menemui kedai dengan kod itu. Semak kod dan cuba lagi.",
++  },
++  "console.activationTitle": {
++    en: "Activate your shop",
++    zh: "激活你的商店",
++    ms: "Aktifkan kedai anda",
++  },
++  "console.activationBody": {
++    en: "Opening a shop needs an activation code from the school. Enter it to continue.",
++    zh: "开设商店需要学校提供的激活码，请输入后继续。",
++    ms: "Membuka kedai memerlukan kod pengaktifan daripada pihak sekolah. Masukkannya untuk teruskan.",
++  },
++  "console.activationCode": { en: "Activation code", zh: "激活码", ms: "Kod pengaktifan" },
++  "console.activationContinue": { en: "Continue", zh: "继续", ms: "Teruskan" },
++  "set.shopCode": { en: "Shop code", zh: "商店代码", ms: "Kod kedai" },
++  "set.shopCodeHint": {
++    en: "Buyers need this code, or the link below, to open your shop.",
++    zh: "买家需要此代码或下方链接才能进入你的商店。",
++    ms: "Pembeli memerlukan kod ini, atau pautan di bawah, untuk membuka kedai anda.",
++  },
++  "err.INVALID_ACTIVATION_CODE": {
++    en: "That activation code is not valid or has already been used.",
++    zh: "激活码无效或已被使用。",
++    ms: "Kod pengaktifan itu tidak sah atau telah digunakan.",
++  },
++  "err.ALREADY_HAS_SHOP": {
++    en: "This account already belongs to a shop.",
++    zh: "此账号已属于一家商店。",
++    ms: "Akaun ini sudah tergolong dalam sebuah kedai.",
++  },
++  "err.SHOP_NOT_FOUND": {
++    en: "We could not find a shop with that code.",
++    zh: "找不到该代码对应的商店。",
++    ms: "Kami tidak menemui kedai dengan kod itu.",
++  },
++  "err.SHOP_UNAVAILABLE": {
++    en: "This shop is no longer available.",
++    zh: "该商店已不可用。",
++    ms: "Kedai ini tidak lagi tersedia.",
++  },
++  "err.NOT_AUTHENTICATED": {
++    en: "Please sign in again.",
++    zh: "请重新登录。",
++    ms: "Sila log masuk semula.",
++  },
+ } as const;
+ 
+ export type TKey = keyof typeof dict;
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/lib/org.ts so/src/lib/org.ts
+--- a/src/lib/org.ts	2026-09-15 09:52:29.993494779 +0000
++++ b/src/lib/org.ts	2026-09-15 09:52:30.302072479 +0000
+@@ -10,9 +10,10 @@
+   organization: {
+     id: string;
+     name: string;
++    shop_code: string;
+     currency: string;
+     is_open: boolean;
+-    owner_id: string;
++    owner_id: string | null;
+     public_theme: string;
+     button_color: string;
+   };
+@@ -38,7 +39,7 @@
+ 
+       const { data: org, error: orgErr } = await supabase
+         .from("organizations")
+-        .select("id, name, currency, is_open, owner_id, public_theme, button_color")
++        .select("id, name, shop_code, currency, is_open, owner_id, public_theme, button_color")
+         .eq("id", member.organization_id)
+         .maybeSingle();
+       if (orgErr) throw orgErr;
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/lib/shop-code.ts so/src/lib/shop-code.ts
+--- a/src/lib/shop-code.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/lib/shop-code.ts	2026-09-15 09:52:30.286186056 +0000
+@@ -0,0 +1,20 @@
++/**
++ * A shop is reached by its own code, never by "whatever shop exists first".
++ * The code is short, uppercase and safe to print on a poster or a QR sticker.
++ */
++export const SHOP_CODE_PATTERN = /^[A-Z0-9-]{4,16}$/;
++
++export function normalizeShopCode(value: string | null | undefined): string {
++  return (value ?? "").trim().toUpperCase();
++}
++
++export function isValidShopCode(value: string | null | undefined): boolean {
++  return SHOP_CODE_PATTERN.test(normalizeShopCode(value));
++}
++
++/** Absolute buyer link for a shop code. Empty during SSR, by design. */
++export function shopLinkFor(code: string | null | undefined): string {
++  const clean = normalizeShopCode(code);
++  if (!clean || typeof window === "undefined") return "";
++  return `${window.location.origin}/guest?code=${encodeURIComponent(clean)}`;
++}
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/lib/shop-theme.ts so/src/lib/shop-theme.ts
+--- a/src/lib/shop-theme.ts	2026-09-15 09:52:29.993544815 +0000
++++ b/src/lib/shop-theme.ts	2026-09-15 09:52:30.291168281 +0000
+@@ -10,18 +10,41 @@
+   return SHOP_THEMES.includes(value as ShopTheme);
+ }
+ 
++export function safeShopTheme(value?: string | null): ShopTheme {
++  return value && isShopTheme(value) ? value : DEFAULT_SHOP_THEME;
++}
++
+ export function safeButtonColor(value?: string | null) {
+   return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : DEFAULT_BUTTON_COLOR;
+ }
+ 
++/**
++ * The shop colour drives every control inside the storefront, not only the
++ * ones using `variant="shop"`. Overriding `--primary` (plus its foreground and
++ * the focus ring) on the container means default buttons, selected option
++ * chips, badges and links follow the owner's colour automatically, with no
++ * per-button opt-in and no hardcoded colour classes in components.
++ */
+ export function shopThemeStyle(buttonColor?: string | null): CSSProperties {
+   const color = safeButtonColor(buttonColor);
+   const red = Number.parseInt(color.slice(1, 3), 16);
+   const green = Number.parseInt(color.slice(3, 5), 16);
+   const blue = Number.parseInt(color.slice(5, 7), 16);
+   const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
++  const foreground = luminance > 0.56 ? "#102A32" : "#FFFFFF";
+   return {
+     "--shop-button": color,
+-    "--shop-button-foreground": luminance > 0.56 ? "#102A32" : "#FFFFFF",
++    "--shop-button-foreground": foreground,
++    "--primary": color,
++    "--primary-foreground": foreground,
++    "--ring": color,
+   } as CSSProperties;
+-}
+\ No newline at end of file
++}
++
++/** Wrapper class + inline variables for any public, shop-branded surface. */
++export function shopSurface(theme?: string | null, buttonColor?: string | null) {
++  return {
++    className: `shop-theme shop-theme-${safeShopTheme(theme)}`,
++    style: shopThemeStyle(buttonColor),
++  };
++}
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/routes/guest.tsx so/src/routes/guest.tsx
+--- a/src/routes/guest.tsx	2026-09-15 09:52:29.993920332 +0000
++++ b/src/routes/guest.tsx	2026-09-15 09:52:30.296991243 +0000
+@@ -1,19 +1,28 @@
+ import { createFileRoute } from "@tanstack/react-router";
+ import { ShopPage } from "@/components/shop/ShopPage";
++import { normalizeShopCode } from "@/lib/shop-code";
++
++type GuestSearch = { code: string };
+ 
+ export const Route = createFileRoute("/guest")({
++  // The shop code lives in the URL so a poster, a QR sticker or a shared link
++  // always opens one specific shop. Anything unusable becomes an empty code,
++  // which renders the "enter your shop code" screen instead of failing.
++  validateSearch: (search: Record<string, unknown>): GuestSearch => ({
++    code: normalizeShopCode(typeof search["code"] === "string" ? search["code"] : ""),
++  }),
+   head: () => ({
+     meta: [
+       { title: "Order now — SchoolOrder" },
+       {
+         name: "description",
+         content:
+-          "Tap a product, pick your options, pay by cash or DuitNow QR and get a pickup code instantly. No account needed.",
++          "Open your shop with its shop code, pick your options, pay by cash or DuitNow QR and get a pickup code instantly. No account needed.",
+       },
+       { property: "og:title", content: "Order now — SchoolOrder" },
+       {
+         property: "og:description",
+-        content: "Tap, customise, pay and collect with a pickup code.",
++        content: "Enter your shop code, customise, pay and collect with a pickup code.",
+       },
+       { property: "og:type", content: "website" },
+       { name: "twitter:card", content: "summary_large_image" },
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/routes/index.tsx so/src/routes/index.tsx
+--- a/src/routes/index.tsx	2026-09-15 09:52:29.993956642 +0000
++++ b/src/routes/index.tsx	2026-09-15 09:52:30.721754671 +0000
+@@ -51,7 +51,7 @@
+           </p>
+           <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+             <Button asChild size="lg" className="h-12">
+-              <Link to="/guest">
++              <Link to="/guest" search={{ code: "" }}>
+                 <ShoppingBag className="mr-2 h-4 w-4" />
+                 {t("landing.guestCta")}
+               </Link>
+@@ -83,7 +83,9 @@
+               <h2 className="text-lg font-bold">{t("landing.guestTitle")}</h2>
+               <p className="text-sm text-muted-foreground">{t("landing.guestBody")}</p>
+               <Button asChild variant="secondary" className="mt-2 h-11 w-full sm:w-auto">
+-                <Link to="/guest">{t("landing.guestCta")}</Link>
++                <Link to="/guest" search={{ code: "" }}>
++                  {t("landing.guestCta")}
++                </Link>
+               </Button>
+             </CardContent>
+           </Card>
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/routes/order.$token.tsx so/src/routes/order.$token.tsx
+--- a/src/routes/order.$token.tsx	2026-09-15 09:52:29.994041501 +0000
++++ b/src/routes/order.$token.tsx	2026-09-15 09:52:30.684310945 +0000
+@@ -12,6 +12,7 @@
  import { money, dateTime } from "@/lib/format";
  import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
-+import { OrderStatusBanner } from "@/components/OrderStatus";
+ import { OrderStatusBanner } from "@/components/OrderStatus";
++import { shopSurface } from "@/lib/shop-theme";
  
  export const Route = createFileRoute("/order/$token")({
    head: () => ({
-@@ -90,18 +90,19 @@
-   return (
-     <div className="min-h-screen bg-background">
-       <SiteHeader subtitle={order?.organization_name} />
--      <main className="mx-auto max-w-2xl px-4 py-6">
-+      <main className="mx-auto max-w-5xl px-4 py-6">
-         {orderQuery.isLoading ? <LoadingState /> : null}
-         {orderQuery.isError ? <ErrorState message={t("order.notFound")} /> : null}
+@@ -37,6 +38,9 @@
+   organization_id: string;
+   organization_name: string;
+   currency: string;
++  shop_code: string | null;
++  public_theme: string | null;
++  button_color: string | null;
+   order_number: string;
+   pickup_code: string;
+   buyer_name: string;
+@@ -87,8 +91,12 @@
+   });
+   const { data: qrUrl } = useSignedUrl(SHOP_BUCKET, qrQuery.data?.image_url ?? null);
  
-         {order ? (
--          <div className="flex flex-col gap-4">
-+          <div className="grid items-start gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-+            <div className="grid gap-4 lg:sticky lg:top-6">
-+              <OrderStatusBanner status={order.status} paymentStatus={order.payment_status} />
-             <Card>
-               <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
--                <CheckCircle2 className="h-8 w-8 text-primary" aria-hidden />
--                <h1 className="text-lg font-semibold">{t("order.title")}</h1>
-+                <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
-                 <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
--                <p className="text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
-+                <p className="font-display text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
-                 <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
-                 <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
-                   <Button variant="outline" size="sm" onClick={() => window.print()}>
-@@ -123,16 +124,13 @@
-                 <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
-               </CardContent>
-             </Card>
-+            </div>
- 
-+            <div className="grid gap-4">
-             <Card>
-               <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-                 <CardTitle className="text-base">{order.order_number}</CardTitle>
--                <div className="flex gap-2">
--                  <Badge variant="secondary">{t(`status.${order.status}` as TKey)}</Badge>
--                  <Badge variant={order.payment_status === "paid" ? "default" : "outline"}>
--                    {t(`pay.${order.payment_status}` as TKey)}
--                  </Badge>
--                </div>
++  // The receipt belongs to the storefront, so it wears the shop's colours too:
++  // print, copy and upload buttons match the shop the buyer ordered from.
++  const surface = shopSurface(order?.public_theme, order?.button_color);
 +
-               </CardHeader>
-               <CardContent className="flex flex-col gap-3 text-sm">
-                 <p className="text-muted-foreground">
-@@ -198,6 +196,7 @@
-                 {t("shop.cashNote")}
-               </p>
-             ) : null}
-+            </div>
+   return (
+-    <div className="min-h-screen bg-background">
++    <div className={`${surface.className} min-h-screen bg-background`} style={surface.style}>
+       <SiteHeader subtitle={order?.organization_name} />
+       <main className="mx-auto max-w-5xl px-4 py-6">
+         {orderQuery.isLoading ? <LoadingState /> : null}
+@@ -98,104 +106,107 @@
+           <div className="grid items-start gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+             <div className="grid gap-4 lg:sticky lg:top-6">
+               <OrderStatusBanner status={order.status} paymentStatus={order.payment_status} />
+-            <Card>
+-              <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
+-                <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
+-                <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
+-                <p className="font-display text-4xl font-extrabold tracking-[0.2em]">{order.pickup_code}</p>
+-                <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
+-                <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
+-                  <Button variant="outline" size="sm" onClick={() => window.print()}>
+-                    <Printer className="mr-1 h-4 w-4" />
+-                    {t("common.print")}
+-                  </Button>
+-                  <Button
+-                    variant="outline"
+-                    size="sm"
+-                    onClick={() => {
+-                      void navigator.clipboard.writeText(window.location.href);
+-                      toast.success(t("common.copied"));
+-                    }}
+-                  >
+-                    <Copy className="mr-1 h-4 w-4" />
+-                    {t("common.copy")}
+-                  </Button>
+-                </div>
+-                <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
+-              </CardContent>
+-            </Card>
++              <Card>
++                <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
++                  <h1 className="text-sm font-semibold text-primary">{t("order.title")}</h1>
++                  <p className="text-sm text-muted-foreground">{t("order.pickupCode")}</p>
++                  <p className="font-display text-4xl font-extrabold tracking-[0.2em]">
++                    {order.pickup_code}
++                  </p>
++                  <p className="text-xs text-muted-foreground">{t("order.showThis")}</p>
++                  <div className="mt-2 flex flex-wrap justify-center gap-2 no-print">
++                    <Button variant="outline" size="sm" onClick={() => window.print()}>
++                      <Printer className="mr-1 h-4 w-4" />
++                      {t("common.print")}
++                    </Button>
++                    <Button
++                      variant="outline"
++                      size="sm"
++                      onClick={() => {
++                        void navigator.clipboard.writeText(window.location.href);
++                        toast.success(t("common.copied"));
++                      }}
++                    >
++                      <Copy className="mr-1 h-4 w-4" />
++                      {t("common.copy")}
++                    </Button>
++                  </div>
++                  <p className="mt-1 text-xs text-muted-foreground">{t("order.saveLink")}</p>
++                </CardContent>
++              </Card>
+             </div>
+ 
+             <div className="grid gap-4">
+-            <Card>
+-              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+-                <CardTitle className="text-base">{order.order_number}</CardTitle>
+-
+-              </CardHeader>
+-              <CardContent className="flex flex-col gap-3 text-sm">
+-                <p className="text-muted-foreground">
+-                  {order.buyer_name}
+-                  {order.buyer_class ? ` · ${order.buyer_class}` : ""} ·{" "}
+-                  {dateTime(order.created_at)}
+-                </p>
+-                <Separator />
+-                <ul className="flex flex-col gap-2">
+-                  {order.items.map((item, i) => (
+-                    <li key={`${item.product_name}-${i}`} className="flex justify-between gap-2">
+-                      <span className="min-w-0">
+-                        {item.product_name} · {item.variant_name} × {item.quantity}
+-                      </span>
+-                      <span className="font-medium">{money(item.line_total, order.currency)}</span>
+-                    </li>
+-                  ))}
+-                </ul>
+-                <Separator />
+-                <div className="flex justify-between">
+-                  <span>{t("common.subtotal")}</span>
+-                  <span>{money(order.subtotal, order.currency)}</span>
+-                </div>
+-                {Number(order.discount) > 0 ? (
+-                  <div className="flex justify-between text-primary">
+-                    <span>{t("common.discount")}</span>
+-                    <span>-{money(order.discount, order.currency)}</span>
+-                  </div>
+-                ) : null}
+-                <div className="flex justify-between text-base font-bold">
+-                  <span>{t("common.total")}</span>
+-                  <span>{money(order.total, order.currency)}</span>
+-                </div>
+-              </CardContent>
+-            </Card>
+-
+-            {order.payment_method === "duitnow" && order.status !== "cancelled" ? (
+               <Card>
+-                <CardHeader>
+-                  <CardTitle className="text-base">{t("order.payNow")}</CardTitle>
++                <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
++                  <CardTitle className="text-base">{order.order_number}</CardTitle>
+                 </CardHeader>
+-                <CardContent className="flex flex-col items-center gap-4">
+-                  {qrUrl ? (
+-                    <img
+-                      src={qrUrl}
+-                      alt={qrQuery.data?.label ?? "DuitNow QR"}
+-                      className="max-h-64 rounded-lg border"
+-                    />
+-                  ) : (
+-                    <p className="text-sm text-muted-foreground">{t("shop.duitnowNote")}</p>
+-                  )}
+-                  {order.has_proof ? (
+-                    <p className="text-sm text-muted-foreground">{t("order.proofUploaded")}</p>
+-                  ) : (
+-                    <p className="text-sm text-muted-foreground">{t("order.payAtCounter")}</p>
+-                  )}
++                <CardContent className="flex flex-col gap-3 text-sm">
++                  <p className="text-muted-foreground">
++                    {order.buyer_name}
++                    {order.buyer_class ? ` · ${order.buyer_class}` : ""} ·{" "}
++                    {dateTime(order.created_at)}
++                  </p>
++                  <Separator />
++                  <ul className="flex flex-col gap-2">
++                    {order.items.map((item, i) => (
++                      <li key={`${item.product_name}-${i}`} className="flex justify-between gap-2">
++                        <span className="min-w-0">
++                          {item.product_name} · {item.variant_name} × {item.quantity}
++                        </span>
++                        <span className="font-medium">
++                          {money(item.line_total, order.currency)}
++                        </span>
++                      </li>
++                    ))}
++                  </ul>
++                  <Separator />
++                  <div className="flex justify-between">
++                    <span>{t("common.subtotal")}</span>
++                    <span>{money(order.subtotal, order.currency)}</span>
++                  </div>
++                  {Number(order.discount) > 0 ? (
++                    <div className="flex justify-between text-primary">
++                      <span>{t("common.discount")}</span>
++                      <span>-{money(order.discount, order.currency)}</span>
++                    </div>
++                  ) : null}
++                  <div className="flex justify-between text-base font-bold">
++                    <span>{t("common.total")}</span>
++                    <span>{money(order.total, order.currency)}</span>
++                  </div>
+                 </CardContent>
+               </Card>
+-            ) : null}
+ 
+-            {order.payment_method === "cash" ? (
+-              <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
+-                {t("shop.cashNote")}
+-              </p>
+-            ) : null}
++              {order.payment_method === "duitnow" && order.status !== "cancelled" ? (
++                <Card>
++                  <CardHeader>
++                    <CardTitle className="text-base">{t("order.payNow")}</CardTitle>
++                  </CardHeader>
++                  <CardContent className="flex flex-col items-center gap-4">
++                    {qrUrl ? (
++                      <img
++                        src={qrUrl}
++                        alt={qrQuery.data?.label ?? "DuitNow QR"}
++                        className="max-h-64 rounded-lg border"
++                      />
++                    ) : (
++                      <p className="text-sm text-muted-foreground">{t("shop.duitnowNote")}</p>
++                    )}
++                    {order.has_proof ? (
++                      <p className="text-sm text-muted-foreground">{t("order.proofUploaded")}</p>
++                    ) : (
++                      <p className="text-sm text-muted-foreground">{t("order.payAtCounter")}</p>
++                    )}
++                  </CardContent>
++                </Card>
++              ) : null}
++
++              {order.payment_method === "cash" ? (
++                <p className="rounded-lg bg-muted px-4 py-3 text-sm text-muted-foreground">
++                  {t("shop.cashNote")}
++                </p>
++              ) : null}
+             </div>
            </div>
          ) : null}
-       </main>
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/src/styles.css /mnt/documents/SchoolOrder-patch-workspace/latest-modified/src/styles.css
---- a/src/styles.css	2026-09-13 06:22:34.882256745 +0000
-+++ b/src/styles.css	2026-09-13 06:23:47.209282335 +0000
-@@ -16,7 +16,8 @@
-   --radius-lg: var(--radius);
-   --radius-xl: calc(var(--radius) + 4px);
-   --radius-2xl: calc(var(--radius) + 8px);
--  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
-+  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
-   --color-background: var(--background);
-   --color-foreground: var(--foreground);
-   --color-card: var(--card);
-@@ -78,6 +79,14 @@
-   --success-foreground: oklch(0.99 0.005 150);
-   --warning: oklch(0.75 0.15 75);
-   --warning-foreground: oklch(0.24 0.05 75);
-+  --status-pending-bg: oklch(0.94 0.05 85);
-+  --status-pending-fg: oklch(0.36 0.1 75);
-+  --status-confirmed-bg: oklch(0.93 0.05 225);
-+  --status-confirmed-fg: oklch(0.35 0.11 235);
-+  --status-completed-bg: oklch(0.93 0.06 155);
-+  --status-completed-fg: oklch(0.34 0.11 155);
-+  --status-cancelled-bg: oklch(0.94 0.05 25);
-+  --status-cancelled-fg: oklch(0.4 0.14 25);
-   --border: oklch(0.9 0.01 165);
-   --input: oklch(0.9 0.01 165);
-   --ring: oklch(0.58 0.13 172);
-@@ -117,6 +126,14 @@
-   --success-foreground: oklch(0.18 0.03 150);
-   --warning: oklch(0.8 0.14 75);
-   --warning-foreground: oklch(0.2 0.04 75);
-+  --status-pending-bg: oklch(0.32 0.06 75);
-+  --status-pending-fg: oklch(0.88 0.11 85);
-+  --status-confirmed-bg: oklch(0.3 0.06 230);
-+  --status-confirmed-fg: oklch(0.86 0.09 220);
-+  --status-completed-bg: oklch(0.3 0.06 155);
-+  --status-completed-fg: oklch(0.86 0.1 155);
-+  --status-cancelled-bg: oklch(0.3 0.06 25);
-+  --status-cancelled-fg: oklch(0.86 0.1 25);
-   --border: oklch(1 0 0 / 12%);
-   --input: oklch(1 0 0 / 16%);
-   --ring: oklch(0.72 0.13 172);
-@@ -172,3 +189,35 @@
-     color: #000;
-   }
- }
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/src/routes/place_order.tsx so/src/routes/place_order.tsx
+--- a/src/routes/place_order.tsx	2026-09-15 09:52:29.994081711 +0000
++++ b/src/routes/place_order.tsx	2026-09-15 09:52:30.302343626 +0000
+@@ -3,6 +3,6 @@
+ // Ordering moved to /guest. Old links keep working through this redirect.
+ export const Route = createFileRoute("/place_order")({
+   beforeLoad: () => {
+-    throw redirect({ to: "/guest" });
++    throw redirect({ to: "/guest", search: { code: "" } });
+   },
+ });
+diff -Naur '--exclude=node_modules' '--exclude=dist' base/supabase/migrations/20260915090000_shop_codes_and_activation.sql so/supabase/migrations/20260915090000_shop_codes_and_activation.sql
+--- a/supabase/migrations/20260915090000_shop_codes_and_activation.sql	1970-01-01 00:00:00.000000000 +0000
++++ b/supabase/migrations/20260915090000_shop_codes_and_activation.sql	2026-09-15 09:52:30.300089539 +0000
+@@ -0,0 +1,394 @@
++-- Dedicated shop codes, owner-linked shops and gated shop creation.
++--
++-- Problems fixed here:
++--  1. The public shop was resolved as "the oldest organization in the table".
++--     Every buyer therefore landed in one shop, and a shop whose owner account
++--     was removed stayed reachable and orderable (ghost orders).
++--  2. organizations.owner_id had no foreign key to auth.users, so deleting a
++--     user left an orphan shop behind forever, with no way to notice it.
++--  3. Anybody who could sign in could create a shop.
++--
++-- Approach:
++--  * Every shop gets its own immutable, shareable shop code. Buyers reach a
++--    shop through that code only (/guest?code=XXXXXX). No global listing.
++--  * owner_id is now a real FK (ON DELETE SET NULL). An ownerless shop is
++--    force-closed by trigger, hidden from public reads and refuses new orders,
++--    while all historical orders stay intact for reporting.
++--  * Creating a shop requires a valid activation code, checked server-side.
 +
-+@utility font-display {
-+  font-family: var(--font-display);
-+  letter-spacing: 0;
-+}
++set search_path = public;
 +
-+@utility shop-button {
-+  background-color: var(--shop-button, var(--color-primary));
-+  color: var(--shop-button-foreground, var(--color-primary-foreground));
-+  &:hover { filter: brightness(0.92); transform: translateY(-1px); }
-+  &:active { transform: scale(0.985); }
-+}
++-- ------------------------------------------------------------ shop code ----
 +
-+@utility status-pending { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: color-mix(in oklab, var(--status-pending-fg) 20%, transparent); }
-+@utility status-confirmed { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: color-mix(in oklab, var(--status-confirmed-fg) 20%, transparent); }
-+@utility status-completed { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: color-mix(in oklab, var(--status-completed-fg) 20%, transparent); }
-+@utility status-cancelled { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: color-mix(in oklab, var(--status-cancelled-fg) 20%, transparent); }
-+@utility payment-pending_payment { background-color: var(--status-pending-bg); color: var(--status-pending-fg); border-color: transparent; }
-+@utility payment-proof_uploaded { background-color: var(--status-confirmed-bg); color: var(--status-confirmed-fg); border-color: transparent; }
-+@utility payment-paid { background-color: var(--status-completed-bg); color: var(--status-completed-fg); border-color: transparent; }
-+@utility payment-rejected { background-color: var(--status-cancelled-bg); color: var(--status-cancelled-fg); border-color: transparent; }
-+@utility status-banner { display: flex; flex-direction: column; gap: 0.75rem; border: 1px solid currentColor; padding: 1.25rem; }
-+@utility status-banner-icon { display: grid; height: 3rem; width: 3rem; place-items: center; border-radius: 9999px; background: color-mix(in oklab, currentColor 12%, transparent); font-size: 1.5rem; }
-+@utility theme-choice { display: flex; min-width: 0; flex-direction: column; gap: 0.5rem; border: 1px solid var(--color-border); padding: 0.5rem; text-align: left; transition: border-color 150ms, box-shadow 150ms; &:hover { border-color: var(--color-primary); } }
-+@utility theme-choice-active { border-color: var(--color-primary); box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary) 24%, transparent); }
-+@utility theme-choice-swatch { height: 2.75rem; width: 100%; background: var(--theme-preview); }
-+.theme-choice-ocean { --theme-preview: linear-gradient(90deg, #0c2340 0 50%, #2d8a9e 50%); }
-+.theme-choice-mint { --theme-preview: linear-gradient(90deg, #17362d 0 50%, #0b7a5a 50%); }
-+.theme-choice-coral { --theme-preview: linear-gradient(90deg, #252525 0 50%, #e85d3a 50%); }
-+.shop-theme-ocean { --background: oklch(0.98 0.01 210); --foreground: oklch(0.24 0.04 245); --accent: oklch(0.93 0.035 205); }
-+.shop-theme-mint { --background: oklch(0.985 0.012 160); --foreground: oklch(0.25 0.035 165); --accent: oklch(0.93 0.04 160); }
-+.shop-theme-coral { --background: oklch(0.985 0.012 45); --foreground: oklch(0.23 0.02 35); --accent: oklch(0.94 0.045 45); }
-diff -ruN '--exclude=.env' '--exclude=node_modules' /mnt/documents/SchoolOrder-patch-workspace/latest-base/supabase/migrations/20260913070000_shop_appearance_and_status.sql /mnt/documents/SchoolOrder-patch-workspace/latest-modified/supabase/migrations/20260913070000_shop_appearance_and_status.sql
---- a/supabase/migrations/20260913070000_shop_appearance_and_status.sql	1970-01-01 00:00:00.000000000 +0000
-+++ b/supabase/migrations/20260913070000_shop_appearance_and_status.sql	2026-09-13 06:22:54.125306386 +0000
-@@ -0,0 +1,44 @@
-+-- Public shop appearance. Values are constrained before they can reach CSS.
-+alter table public.organizations
-+  add column if not exists public_theme text not null default 'ocean'
-+    check (public_theme in ('ocean', 'mint', 'coral')),
-+  add column if not exists button_color text not null default '#2D8A9E'
-+    check (button_color ~ '^#[0-9A-Fa-f]{6}$');
++create or replace function public.gen_shop_code()
++returns text
++language plpgsql
++volatile
++security definer
++set search_path = public
++as $$
++declare
++  v_code text;
++  v_tries int := 0;
++begin
++  loop
++    v_code := public.gen_code(6);
++    exit when not exists (select 1 from public.organizations where shop_code = v_code);
++    v_tries := v_tries + 1;
++    if v_tries > 50 then
++      raise exception 'SHOP_CODE_UNAVAILABLE';
++    end if;
++  end loop;
++  return v_code;
++end;
++$$;
 +
-+-- Owner and active dealers may change appearance only. This avoids granting
-+-- dealers UPDATE access to shop name, currency or open/closed state.
-+create or replace function public.update_shop_appearance(
-+  p_org uuid,
-+  p_theme text,
-+  p_button_color text
-+)
-+returns void
++alter table public.organizations add column if not exists shop_code text;
++
++-- Backfill one code per existing shop (gen_shop_code sees rows already filled).
++do $$
++declare r record;
++begin
++  for r in select id from public.organizations where shop_code is null order by created_at loop
++    update public.organizations set shop_code = public.gen_shop_code() where id = r.id;
++  end loop;
++end $$;
++
++create unique index if not exists organizations_shop_code_key on public.organizations(shop_code);
++
++alter table public.organizations alter column shop_code set default public.gen_shop_code();
++alter table public.organizations alter column shop_code set not null;
++
++-- --------------------------------------------------------- owner linkage ---
++
++alter table public.organizations alter column owner_id drop not null;
++
++-- Orphans from deleted accounts are detached (and auto-closed by the trigger).
++update public.organizations o
++set owner_id = null
++where o.owner_id is not null
++  and not exists (select 1 from auth.users u where u.id = o.owner_id);
++
++do $$
++begin
++  if not exists (
++    select 1 from pg_constraint
++    where conname = 'organizations_owner_id_fkey' and conrelid = 'public.organizations'::regclass
++  ) then
++    alter table public.organizations
++      add constraint organizations_owner_id_fkey
++      foreign key (owner_id) references auth.users(id) on delete set null;
++  end if;
++end $$;
++
++-- Membership rows of deleted accounts must go too, otherwise a dealer seat
++-- stays "active" for a user that no longer exists.
++delete from public.organization_members m
++where not exists (select 1 from auth.users u where u.id = m.user_id);
++
++do $$
++begin
++  if not exists (
++    select 1 from pg_constraint
++    where conname = 'organization_members_user_id_fkey'
++      and conrelid = 'public.organization_members'::regclass
++  ) then
++    alter table public.organization_members
++      add constraint organization_members_user_id_fkey
++      foreign key (user_id) references auth.users(id) on delete cascade;
++  end if;
++end $$;
++
++-- The code is the shop's public identity: it must never be edited by hand,
++-- and a shop with no owner account can never be open for orders again.
++create or replace function public.organizations_guard()
++returns trigger
 +language plpgsql
 +security definer
 +set search_path = public
 +as $$
 +begin
-+  if not (
-+    public.has_org_role(p_org, 'owner')
-+    or public.has_org_role(p_org, 'dealer')
-+  ) then
-+    raise exception 'FORBIDDEN';
++  if tg_op = 'UPDATE' then
++    if new.shop_code is distinct from old.shop_code then
++      new.shop_code := old.shop_code;
++    end if;
 +  end if;
-+  if p_theme not in ('ocean', 'mint', 'coral')
-+    or p_button_color !~ '^#[0-9A-Fa-f]{6}$' then
-+    raise exception 'INVALID_APPEARANCE';
++  if new.shop_code is null then
++    new.shop_code := public.gen_shop_code();
 +  end if;
-+  update public.organizations
-+  set public_theme = p_theme, button_color = upper(p_button_color)
-+  where id = p_org;
-+  if not found then
-+    raise exception 'ORG_NOT_FOUND';
++  if new.owner_id is null then
++    new.is_open := false;
 +  end if;
++  return new;
 +end;
 +$$;
 +
-+revoke all on function public.update_shop_appearance(uuid, text, text) from public, anon;
-+grant execute on function public.update_shop_appearance(uuid, text, text) to authenticated;
++drop trigger if exists organizations_guard_trg on public.organizations;
++create trigger organizations_guard_trg
++before insert or update on public.organizations
++for each row execute function public.organizations_guard();
 +
-+-- Keep financial history intact when cancelling. The UI intentionally hides
-+-- payment badges on cancelled orders to avoid a contradictory customer message.
-\ No newline at end of file
++-- Close any shop that was detached above.
++update public.organizations set is_open = false where owner_id is null and is_open;
++
++-- A shop is live only when it still has an owner and is open for orders.
++create or replace function public.shop_is_live(_org uuid)
++returns boolean
++language sql
++stable
++security definer
++set search_path = public
++as $$
++  select exists (
++    select 1 from public.organizations o
++    where o.id = _org and o.owner_id is not null and o.is_open
++  );
++$$;
++
++grant execute on function public.shop_is_live(uuid) to anon, authenticated;
++
++-- No order may ever be created against a dead shop, whichever path writes it.
++create or replace function public.orders_require_live_shop()
++returns trigger
++language plpgsql
++security definer
++set search_path = public
++as $$
++declare v_owner uuid; v_open boolean;
++begin
++  select owner_id, is_open into v_owner, v_open
++  from public.organizations where id = new.organization_id;
++  if not found then raise exception 'ORG_NOT_FOUND'; end if;
++  if v_owner is null then raise exception 'SHOP_UNAVAILABLE'; end if;
++  if not v_open then raise exception 'SHOP_CLOSED'; end if;
++  return new;
++end;
++$$;
++
++drop trigger if exists orders_require_live_shop_trg on public.orders;
++create trigger orders_require_live_shop_trg
++before insert on public.orders
++for each row execute function public.orders_require_live_shop();
++
++-- ------------------------------------------------------------- policies ----
++
++-- Public reads are limited to live shops. Members keep full read of their own
++-- shop (including while closed) so the console never goes blank.
++drop policy if exists "orgs public read" on public.organizations;
++create policy "orgs public read" on public.organizations
++  for select to anon, authenticated
++  using (owner_id is not null and is_open);
++
++drop policy if exists "orgs member read" on public.organizations;
++create policy "orgs member read" on public.organizations
++  for select to authenticated
++  using (owner_id = auth.uid() or public.is_org_member(id));
++
++drop policy if exists "products public read active" on public.products;
++create policy "products public read active" on public.products
++  for select to anon, authenticated
++  using (is_active and public.shop_is_live(organization_id));
++
++drop policy if exists "options public read" on public.product_options;
++create policy "options public read" on public.product_options
++  for select to anon, authenticated
++  using (
++    public.shop_is_live(organization_id)
++    and exists (select 1 from public.products p where p.id = product_id and p.is_active)
++  );
++
++drop policy if exists "option values public read" on public.product_option_values;
++create policy "option values public read" on public.product_option_values
++  for select to anon, authenticated
++  using (
++    public.shop_is_live(organization_id)
++    and exists (
++      select 1 from public.product_options o
++      join public.products p on p.id = o.product_id
++      where o.id = option_id and p.is_active
++    )
++  );
++
++drop policy if exists "qr public read" on public.payment_qr;
++create policy "qr public read" on public.payment_qr
++  for select to anon, authenticated
++  using (
++    (is_active and public.shop_is_live(organization_id))
++    or public.has_org_role(organization_id, 'owner')
++  );
++
++-- ---------------------------------------------------- activation codes -----
++
++create table if not exists public.shop_activation_codes (
++  code text primary key,
++  note text,
++  max_uses integer not null default 1 check (max_uses > 0),
++  used_count integer not null default 0 check (used_count >= 0),
++  expires_at timestamptz,
++  is_active boolean not null default true,
++  created_at timestamptz not null default now()
++);
++
++alter table public.shop_activation_codes enable row level security;
++
++-- Deliberately no grants to anon/authenticated: the table is only ever read by
++-- the SECURITY DEFINER functions below, so codes can never be enumerated.
++revoke all on public.shop_activation_codes from anon, authenticated;
++grant all on public.shop_activation_codes to service_role;
++
++-- Starter code. Change or deactivate it from the SQL editor:
++--   update public.shop_activation_codes set is_active = false where code = 'SCHOOL-2026';
++--   insert into public.shop_activation_codes (code, max_uses, note)
++--        values ('MY-OWN-CODE', 5, 'handed out in person');
++insert into public.shop_activation_codes (code, note, max_uses)
++values ('SCHOOL-2026', 'Starter activation code - replace before going live', 25)
++on conflict (code) do nothing;
++
++create or replace function public.normalize_activation_code(p_code text)
++returns text
++language sql
++immutable
++as $$ select upper(btrim(coalesce(p_code, ''))) $$;
++
++create or replace function public.verify_shop_activation_code(p_code text)
++returns boolean
++language plpgsql
++stable
++security definer
++set search_path = public
++as $$
++declare v_code text;
++begin
++  if auth.uid() is null then raise exception 'NOT_AUTHENTICATED'; end if;
++  v_code := public.normalize_activation_code(p_code);
++  if length(v_code) < 4 then return false; end if;
++  perform 1 from public.shop_activation_codes
++  where code = v_code and is_active
++    and (expires_at is null or expires_at > now())
++    and used_count < max_uses;
++  return found;
++end;
++$$;
++
++revoke all on function public.verify_shop_activation_code(text) from public, anon;
++grant execute on function public.verify_shop_activation_code(text) to authenticated;
++
++-- Creating a shop is a single server-side transaction: validate the activation
++-- code, create the shop, seat the owner, burn one use of the code.
++create or replace function public.create_shop_with_code(p_name text, p_code text)
++returns jsonb
++language plpgsql
++security definer
++set search_path = public
++as $$
++declare
++  v_user uuid := auth.uid();
++  v_name text;
++  v_code text;
++  v_org_id uuid;
++  v_shop_code text;
++begin
++  if v_user is null then raise exception 'NOT_AUTHENTICATED'; end if;
++
++  v_name := nullif(btrim(coalesce(p_name, '')), '');
++  if v_name is null or length(v_name) < 2 or length(v_name) > 60 then
++    raise exception 'INVALID_NAME';
++  end if;
++
++  if exists (
++    select 1 from public.organization_members m
++    where m.user_id = v_user and m.status = 'active'
++  ) then
++    raise exception 'ALREADY_HAS_SHOP';
++  end if;
++
++  v_code := public.normalize_activation_code(p_code);
++
++  update public.shop_activation_codes
++  set used_count = used_count + 1
++  where code = v_code
++    and is_active
++    and (expires_at is null or expires_at > now())
++    and used_count < max_uses;
++
++  if not found then raise exception 'INVALID_ACTIVATION_CODE'; end if;
++
++  insert into public.organizations (name, owner_id)
++  values (v_name, v_user)
++  returning id, shop_code into v_org_id, v_shop_code;
++
++  insert into public.organization_members (organization_id, user_id, role, status)
++  values (v_org_id, v_user, 'owner', 'active');
++
++  return jsonb_build_object('organization_id', v_org_id, 'shop_code', v_shop_code);
++end;
++$$;
++
++revoke all on function public.create_shop_with_code(text, text) from public, anon;
++grant execute on function public.create_shop_with_code(text, text) to authenticated;
++
++-- Shops are opened through the activation flow only: a plain INSERT would skip
++-- the code check, so that path is closed.
++drop policy if exists "orgs owner insert" on public.organizations;
++
++-- ------------------------------------------------- public shop by code -----
++
++create or replace function public.get_shop_by_code(p_code text)
++returns jsonb
++language plpgsql
++stable
++security definer
++set search_path = public
++as $$
++declare v_org record; v_code text;
++begin
++  v_code := public.normalize_activation_code(p_code);
++  if length(v_code) < 4 then raise exception 'SHOP_NOT_FOUND'; end if;
++
++  select * into v_org from public.organizations
++  where shop_code = v_code and owner_id is not null;
++  if not found then raise exception 'SHOP_NOT_FOUND'; end if;
++
++  return jsonb_build_object(
++    'id', v_org.id,
++    'name', v_org.name,
++    'shop_code', v_org.shop_code,
++    'currency', v_org.currency,
++    'is_open', v_org.is_open,
++    'public_theme', v_org.public_theme,
++    'button_color', v_org.button_color
++  );
++end;
++$$;
++
++grant execute on function public.get_shop_by_code(text) to anon, authenticated;
++
++-- The order page needs the shop's colours so its buttons match the storefront.
++create or replace function public.get_order_by_token(p_token text)
++returns jsonb language plpgsql stable security definer set search_path = public as $$
++declare v_order record; v_org record; v_items jsonb;
++begin
++  if p_token is null or length(p_token) < 20 then raise exception 'ORDER_NOT_FOUND'; end if;
++  select * into v_order from public.orders where access_token = p_token;
++  if not found then raise exception 'ORDER_NOT_FOUND'; end if;
++  select * into v_org from public.organizations where id = v_order.organization_id;
++  select coalesce(jsonb_agg(jsonb_build_object(
++    'product_name', product_name, 'variant_name', variant_name,
++    'unit_price', unit_price, 'quantity', quantity, 'line_total', line_total)), '[]'::jsonb)
++    into v_items from public.order_items where order_id = v_order.id;
++  return jsonb_build_object(
++    'organization_id', v_org.id,
++    'organization_name', v_org.name, 'currency', v_org.currency,
++    'shop_code', v_org.shop_code,
++    'public_theme', v_org.public_theme,
++    'button_color', v_org.button_color,
++    'order_number', v_order.order_number, 'pickup_code', v_order.pickup_code,
++    'buyer_name', v_order.buyer_name, 'buyer_class', v_order.buyer_class,
++    'subtotal', v_order.subtotal, 'discount', v_order.discount, 'total', v_order.total,
++    'payment_method', v_order.payment_method, 'payment_status', v_order.payment_status,
++    'status', v_order.status, 'created_at', v_order.created_at,
++    'has_proof', v_order.payment_proof_path is not null,
++    'items', v_items);
++end; $$;
++
++grant execute on function public.get_order_by_token(text) to anon, authenticated;
