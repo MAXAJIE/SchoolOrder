@@ -21,6 +21,7 @@ import {
 import { LoadingState, ErrorState, EmptyState } from "@/components/States";
 import { useI18n, translateError, type TKey } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
+import { fullDate } from "@/lib/schedule";
 import { callRpc } from "@/lib/rpc";
 import { PROOF_BUCKET, signedUrl } from "@/lib/storage";
 import { OrderStatusBadge, PaymentStatusBadge } from "@/components/OrderStatus";
@@ -37,6 +38,7 @@ type Order = {
   status: "pending" | "confirmed" | "completed" | "cancelled";
   payment_proof_path: string | null;
   created_at: string;
+  service_date: string | null;
   order_items: { product_name: string; variant_name: string; quantity: number }[];
 };
 
@@ -46,9 +48,10 @@ function isHistory(order: Order) {
 }
 
 export function Orders({ orgId, currency }: { orgId: string; currency: string }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [day, setDay] = useState("all");
   const [filter, setFilter] = useState<"all" | "pending" | "unpaid">("all");
   const [history, setHistory] = useState(false);
 
@@ -58,7 +61,7 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_number, pickup_code, buyer_name, buyer_class, total, payment_method, payment_status, status, payment_proof_path, created_at, order_items(product_name, variant_name, quantity)",
+          "id, order_number, pickup_code, buyer_name, buyer_class, total, payment_method, payment_status, status, payment_proof_path, created_at, service_date, order_items(product_name, variant_name, quantity)",
         )
         .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
@@ -100,15 +103,25 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
 
   const historyCount = useMemo(() => (query.data ?? []).filter(isHistory).length, [query.data]);
 
+  // Preorder days present in the data, so the owner can zero in on one pickup day.
+  const days = useMemo(
+    () =>
+      Array.from(
+        new Set((query.data ?? []).map((o) => o.service_date).filter((d): d is string => Boolean(d))),
+      ).sort(),
+    [query.data],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (query.data ?? []).filter((o) => {
+    const matched = (query.data ?? []).filter((o) => {
       const matches =
         !q ||
         o.order_number.toLowerCase().includes(q) ||
         o.buyer_name.toLowerCase().includes(q) ||
         o.pickup_code.toLowerCase().includes(q);
       if (!matches) return false;
+      if (day !== "all" && o.service_date !== day) return false;
       // Finished and cancelled orders only ever show inside history.
       if (history) return isHistory(o);
       if (isHistory(o)) return false;
@@ -116,7 +129,14 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
       if (filter === "unpaid") return o.payment_status !== "paid";
       return true;
     });
-  }, [query.data, search, filter, history]);
+    // Preorders read in pickup-day order; instant orders (no day) stay by recency.
+    return matched.sort((a, b) => {
+      if (a.service_date && b.service_date && a.service_date !== b.service_date) {
+        return a.service_date < b.service_date ? -1 : 1;
+      }
+      return b.created_at.localeCompare(a.created_at);
+    });
+  }, [query.data, search, filter, history, day]);
 
   async function openProof(path: string) {
     const url = await signedUrl(PROOF_BUCKET, path);
@@ -154,6 +174,21 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                 </Button>
               ))
             : null}
+          {days.length > 0 ? (
+            <select
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+              aria-label={t("ord.pickupDay")}
+              className="h-11 shrink-0 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">{t("ord.allDays")}</option>
+              {days.map((d) => (
+                <option key={d} value={d}>
+                  {fullDate(d, lang)}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <Button
             size="sm"
             variant={history ? "default" : "ghost"}
@@ -187,6 +222,11 @@ export function Orders({ orgId, currency }: { orgId: string; currency: string })
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{o.pickup_code}</Badge>
+                  {o.service_date ? (
+                    <Badge variant="secondary" className="font-medium">
+                      {fullDate(o.service_date, lang)}
+                    </Badge>
+                  ) : null}
                   <OrderStatusBadge status={o.status} />
                   {o.status !== "cancelled" ? <PaymentStatusBadge status={o.payment_status} /> : null}
                 </div>

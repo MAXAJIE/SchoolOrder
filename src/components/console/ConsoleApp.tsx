@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dashboard } from "@/components/console/Dashboard";
 import { Products } from "@/components/console/Products";
 import { Orders } from "@/components/console/Orders";
+import { Schedule } from "@/components/console/Schedule";
 import { Promos } from "@/components/console/Promos";
 import { Dealers } from "@/components/console/Dealers";
 import { Requests } from "@/components/console/Requests";
@@ -22,7 +23,7 @@ import { useMembership } from "@/lib/org";
 import { useI18n, translateError, type TKey } from "@/lib/i18n";
 import { callRpc } from "@/lib/rpc";
 
-type OwnerTab = "dashboard" | "products" | "orders" | "promos" | "dealers" | "settings";
+type OwnerTab = "dashboard" | "products" | "schedule" | "orders" | "promos" | "dealers" | "settings";
 
 export function ConsoleApp() {
   const { t } = useI18n();
@@ -74,6 +75,7 @@ export function ConsoleApp() {
     ? [
         { id: "dashboard", label: t("nav.dashboard") },
         { id: "products", label: t("nav.products") },
+        { id: "schedule", label: t("nav.schedule") },
         { id: "orders", label: t("nav.orders") },
         { id: "promos", label: t("nav.promos") },
         { id: "dealers", label: t("nav.dealers") },
@@ -117,6 +119,9 @@ export function ConsoleApp() {
         ) : null}
         {isOwner && tab === "products" ? (
           <Products orgId={organizationId} currency={organization.currency} />
+        ) : null}
+        {isOwner && tab === "schedule" ? (
+          <Schedule orgId={organizationId} currency={organization.currency} />
         ) : null}
         {isOwner && tab === "orders" ? (
           <Orders orgId={organizationId} currency={organization.currency} />

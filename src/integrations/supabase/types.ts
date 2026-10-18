@@ -226,6 +226,7 @@ export type Database = {
           created_at: string
           discount: number
           id: string
+          service_date: string | null
           note: string | null
           order_number: string
           organization_id: string
@@ -249,6 +250,7 @@ export type Database = {
           created_at?: string
           discount?: number
           id?: string
+          service_date?: string | null
           note?: string | null
           order_number: string
           organization_id: string
@@ -272,6 +274,7 @@ export type Database = {
           created_at?: string
           discount?: number
           id?: string
+          service_date?: string | null
           note?: string | null
           order_number?: string
           organization_id?: string
@@ -302,6 +305,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      product_schedules: {
+        Row: {
+          capacity: number
+          created_at: string
+          cutoff_time: string | null
+          id: string
+          is_available: boolean
+          organization_id: string
+          product_id: string
+          reserved: number
+          service_date: string
+          updated_at: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          cutoff_time?: string | null
+          id?: string
+          is_available?: boolean
+          organization_id: string
+          product_id: string
+          reserved?: number
+          service_date: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          cutoff_time?: string | null
+          id?: string
+          is_available?: boolean
+          organization_id?: string
+          product_id?: string
+          reserved?: number
+          service_date?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       organization_members: {
         Row: {
@@ -819,6 +861,23 @@ export type Database = {
         Returns: Json
       }
       cancel_order: { Args: { p_order: string }; Returns: Json }
+      get_shop_calendar: { Args: { p_org: string }; Returns: Json }
+      get_shop_menu: { Args: { p_org: string; p_service_date: string }; Returns: Json }
+      owner_copy_schedule: { Args: { p_from: string; p_org: string; p_to: string }; Returns: Json }
+      owner_delete_schedule: { Args: { p_date: string; p_org: string; p_product: string }; Returns: Json }
+      owner_list_schedule: { Args: { p_days?: number; p_from?: string | null; p_org: string }; Returns: Json }
+      owner_release_stale_holds: { Args: { p_minutes?: number; p_org: string }; Returns: Json }
+      owner_upsert_schedule: {
+        Args: {
+          p_capacity: number
+          p_cutoff_time?: string | null
+          p_date: string
+          p_is_available?: boolean
+          p_org: string
+          p_product: string
+        }
+        Returns: Json
+      }
       create_public_order: {
         Args: {
           p_buyer_age: number
@@ -828,6 +887,7 @@ export type Database = {
           p_org: string
           p_payment_method: Database["public"]["Enums"]["payment_method"]
           p_promo_code?: string
+          p_service_date: string
         }
         Returns: Json
       }

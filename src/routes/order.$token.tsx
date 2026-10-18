@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "@/lib/i18n";
 import { money, dateTime } from "@/lib/format";
+import { fullDate } from "@/lib/schedule";
 import { SHOP_BUCKET, useSignedUrl } from "@/lib/storage";
 import { OrderStatusBanner } from "@/components/OrderStatus";
 import { shopSurface } from "@/lib/shop-theme";
@@ -52,13 +53,14 @@ type OrderView = {
   payment_status: "pending_payment" | "proof_uploaded" | "paid" | "rejected";
   status: "pending" | "confirmed" | "completed" | "cancelled";
   created_at: string;
+  service_date: string | null;
   has_proof: boolean;
   items: OrderItem[];
 };
 
 function OrderPage() {
   const { token } = Route.useParams();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const orderQuery = useQuery({
     queryKey: ["order", token],
@@ -147,6 +149,11 @@ function OrderPage() {
                     {order.buyer_class ? ` · ${order.buyer_class}` : ""} ·{" "}
                     {dateTime(order.created_at)}
                   </p>
+                  {order.service_date ? (
+                    <p className="font-medium">
+                      {t("order.pickupDay")}: {fullDate(order.service_date, lang)}
+                    </p>
+                  ) : null}
                   <Separator />
                   <ul className="flex flex-col gap-2">
                     {order.items.map((item, i) => (
